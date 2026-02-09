@@ -12,4 +12,6 @@ globals.lua
 
 Trace/QLTrace.xml
 
+QuestLogTrace_StateTracking.lua
+QuestLogTrace_UI.lua
 QuestLogTrace.lua
