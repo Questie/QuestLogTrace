@@ -9,24 +9,24 @@ QuestLogHistory = {}
 QuestHistory = {}
 
 -- Register slash command
-SlashCmdList["QUESTLOGTEST"] = function(arg1)
+SlashCmdList["QuestLogTrace"] = function(arg1)
   print(arg1)
-  print("questlogtest")
+  print("QuestLogTrace")
   local action, argument = strsplit(" ", arg1, 2)
   if action == "save" then
     -- This dumps a event log to a character saved variable
-    print("QuestLogTest", QuestLogTest)
-    QuestLogTest = QuestLogTest or {}
-    QuestLogTest[argument] = {}
-    QuestLogTest[argument].events = QLTrace.logDataProvider.collection
-    QuestLogTest[argument].questHistory = QuestHistory
-    QuestLogTest[argument].questLogHistory = QuestLogHistory
+    print("QuestLogTrace", QuestLogTrace)
+    QuestLogTrace = QuestLogTrace or {}
+    QuestLogTrace[argument] = {}
+    QuestLogTrace[argument].events = QLTrace.logDataProvider.collection
+    QuestLogTrace[argument].questHistory = QuestHistory
+    QuestLogTrace[argument].questLogHistory = QuestLogHistory
 
-    print("QuestLogTestCharacter", QuestLogTestCharacter)
-    QuestLogTestCharacter = {}
-    QuestLogTestCharacter.events = QLTrace.logDataProvider.collection
-    QuestLogTestCharacter.questHistory = QuestHistory
-    QuestLogTestCharacter.questLogHistory = QuestLogHistory
+    print("QuestLogTraceCharacter", QuestLogTraceCharacter)
+    QuestLogTraceCharacter = {}
+    QuestLogTraceCharacter.events = QLTrace.logDataProvider.collection
+    QuestLogTraceCharacter.questHistory = QuestHistory
+    QuestLogTraceCharacter.questLogHistory = QuestLogHistory
   elseif action == "test" then
     if argument == "accepted" then
       RunAcceptedQuest()
@@ -36,8 +36,8 @@ SlashCmdList["QUESTLOGTEST"] = function(arg1)
   end
 end
 
-SLASH_QUESTLOGTEST1 = "/questlogtest"
-SLASH_QUESTLOGTEST2 = "/qlt"
+SLASH_QuestLogTrace1 = "/QuestLogTrace"
+SLASH_QuestLogTrace2 = "/qlt"
 
 -- local timestamp = GetTime()
 
@@ -160,7 +160,7 @@ local function QuestDump(questIds)
 
     -- Check if quest is new
     if not QuestHistory[questId] then
-      print("QuestLogTest", "Adding new quest to history", QuestLogTitleData[1], questId)
+      print("QuestLogTrace", "Adding new quest to history", QuestLogTitleData[1], questId)
       QuestHistory[questId] = {}
 
       ---@class QuestHistory
@@ -189,10 +189,10 @@ local function QuestDump(questIds)
           doQuestCompleteDiff or
           doQuestFlaggedCompleteDiff then
         if doQuestTitleDiff then
-          print("QuestLogTest", "Title differs for quest", questId)
+          print("QuestLogTrace", "Title differs for quest", questId)
         end
         if doObjectivesDiff then
-          print("QuestLogTest", "Objectives differ for quest", questId)
+          print("QuestLogTrace", "Objectives differ for quest", questId)
         end
         table.insert(QuestHistory[questId], {
           timestamp = GetTime(),
@@ -212,7 +212,7 @@ end
 local function QuestLogDump()
   local questLog = { timestamp = GetTime(), questIds = GetAllQuestIdsInLog() }
   if not DeepCompare(questLog, QuestLogHistory) then
-    print("QuestLogTest", "Quest log differs")
+    print("QuestLogTrace", "Quest log differs")
     QuestLogHistory[#QuestLogHistory + 1] = questLog
   end
 end
@@ -254,11 +254,6 @@ frame:SetScript("OnUpdate", function() QuestDump(GetAllQuestIdsInLog()) end)
 --   QLTrace:SetShown(not QLTrace:IsShown());
 -- end)
 -- QLTrace:Show()
-local safePack = function(...) -- Copied from Blizzard Code
-  local tbl = { ... };
-  tbl.n = select("#", ...);
-  return tbl;
-end
 SlashCmdList["QLTRACE"] = function()
   -- local elementData = {
   --   event = "a",
@@ -285,7 +280,7 @@ SLASH_QLTRACE1 = "/qltrace"
 --     end
 
 --     if questId ~= questId2 then
---       print("QuestLogTest", "Quest ID mismatch", questId, questId2)
+--       print("QuestLogTrace", "Quest ID mismatch", questId, questId2)
 --       break
 --     end
 
@@ -296,13 +291,13 @@ SLASH_QLTRACE1 = "/qltrace"
 --       local returnDataId = { GetQuestLogTitle(GetQuestLogIndexByID(questId)) }
 
 --       if not DeepCompare(returnDataIndex, returnDataId) then
---         print("QuestLogTest", "Data does not match", returnDataIndex[1], questId)
+--         print("QuestLogTrace", "Data does not match", returnDataIndex[1], questId)
 --       end
 
 --       local returnData = returnDataIndex
 
 --       if not QuestHistory[questId] then
---         print("QuestLogTest", "Adding new quest to history", returnData[1], questId)
+--         print("QuestLogTrace", "Adding new quest to history", returnData[1], questId)
 --         QuestHistory[questId] = {}
 
 --         table.insert(QuestHistory[questId], {
@@ -316,7 +311,7 @@ SLASH_QLTRACE1 = "/qltrace"
 --         local objectives = C_QuestLog.GetQuestObjectives(questId)
 --         local lastIndex = #QuestHistory[questId]
 --         if not DeepCompare(objectives, QuestHistory[questId][lastIndex].GetQuestObjectives) then
---           print("QuestLogTest", "Objectives differ for quest", questId)
+--           print("QuestLogTrace", "Objectives differ for quest", questId)
 --           table.insert(QuestHistory[questId], {
 --             timestamp = GetTime(),
 --             -- index = questLogIndex,

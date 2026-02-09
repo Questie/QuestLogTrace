@@ -1,0 +1,15 @@
+## Interface: 11403
+## Title: QuestLogTrace
+## Author: Logon
+## Notes: Event Trace + Function Trace
+## Version: 1
+## RequiredDeps:
+## OptionalDeps: 
+## SavedVariables: QuestLogTrace
+## SavedVariablesPerCharacter: QuestLogTraceCharacter
+
+globals.lua
+
+Trace/QLTrace.xml
+
+QuestLogTrace.lua
