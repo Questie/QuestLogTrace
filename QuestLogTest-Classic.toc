@@ -1,0 +1,23 @@
+## Interface: 11403
+## Title: QuestLogTest
+## Author: Logon
+## Notes: Dump functions
+## Version: 1
+## RequiredDeps:
+## OptionalDeps: 
+## SavedVariables: QuestLogTest
+## SavedVariablesPerCharacter: QuestLogTestCharacter
+
+globals.lua
+
+Trace/QLTrace.xml
+
+Events/Events.lua
+
+QuestLogTest.lua
+
+Tests/EventsLogs/QuestAcceptedEvent.lua
+
+Tests/EventsLogs/QuestCompleteEvent.lua
+Tests/EventsLogs/CompleteQuestAccept2.lua
+Tests/FakeEvent.lua
