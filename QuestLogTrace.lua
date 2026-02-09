@@ -270,11 +270,7 @@ local function EnsurePlayerStaticInfo(attempt)
   end)
 end
 
-local function CapturePlayerPosition(eventName, delay, eventCategory)
-  if not capture.active or not capture.current then
-    return nil
-  end
-
+local function BuildPositionState()
   local mapID = C_Map.GetBestMapForUnit("player")
   local x, y = nil, nil
   if mapID then
@@ -284,11 +280,7 @@ local function CapturePlayerPosition(eventName, delay, eventCategory)
     end
   end
 
-  local sample = {
-    t = GetTime() - capture.current.startedAt,
-    e = eventName,
-    c = eventCategory,
-    d = delay or 0,
+  return {
     m = mapID,
     x = x,
     y = y,
@@ -297,9 +289,53 @@ local function CapturePlayerPosition(eventName, delay, eventCategory)
     sz = GetSubZoneText(),
     rz = GetRealZoneText(),
   }
+end
+
+local function IsSamePositionState(lhs, rhs)
+  if not lhs or not rhs then
+    return false
+  end
+
+  return lhs.m == rhs.m and
+      lhs.x == rhs.x and
+      lhs.y == rhs.y and
+      lhs.l == rhs.l and
+      lhs.z == rhs.z and
+      lhs.sz == rhs.sz and
+      lhs.rz == rhs.rz
+end
+
+local function CapturePlayerPosition(eventName, delay, eventCategory)
+  if not capture.active or not capture.current then
+    return nil
+  end
+
+  local state = BuildPositionState()
+  local lastIndex = capture.current.lastPositionSampleIndex
+  local lastSample = lastIndex and capture.current.positionSamples[lastIndex] or nil
+
+  if lastSample and IsSamePositionState(lastSample, state) then
+    return lastIndex
+  end
+
+  local sample = {
+    t = GetTime() - capture.current.startedAt,
+    e = eventName,
+    c = eventCategory,
+    d = delay or 0,
+    m = state.m,
+    x = state.x,
+    y = state.y,
+    l = state.l,
+    z = state.z,
+    sz = state.sz,
+    rz = state.rz,
+  }
 
   table.insert(capture.current.positionSamples, sample)
-  return sample
+  local newIndex = #capture.current.positionSamples
+  capture.current.lastPositionSampleIndex = newIndex
+  return newIndex
 end
 
 local function SerializeTraceEvents(startLogIndex, endLogIndex)
@@ -406,6 +442,7 @@ function Core.StartCapture(sessionName)
     endLogIndex = nil,
     questEvents = {},
     positionSamples = {},
+    lastPositionSampleIndex = nil,
     levelEvents = {},
     player = ShallowCopyTable(playerStaticInfo),
   }
@@ -534,7 +571,7 @@ local function ProcessTrackedEvent(event, ...)
     c = eventCategory,
     t = GetTime() - capture.current.startedAt,
     a = CopyPackedArgs(safePack(...)),
-    p = CapturePlayerPosition(event, 0, eventCategory),
+    pi = CapturePlayerPosition(event, 0, eventCategory),
   }
   table.insert(capture.current.questEvents, triggerRecord)
 

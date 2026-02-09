@@ -7,8 +7,11 @@ local Core = QuestLogTraceCore
 QuestLogHistory = QuestLogHistory or {}
 ---@type table<number, table<number, QuestHistory>>
 QuestHistory = QuestHistory or {}
----@type table<number, { timestamp: number, questIds: number[] }>
+---@type table<number, { timestamp: number, added: number[], removed: number[], count: number }>
 CompletedQuestsHistory = CompletedQuestsHistory or {}
+---@type table<number, true>
+CompletedQuestsState = CompletedQuestsState or {}
+CompletedQuestsCount = CompletedQuestsCount or 0
 
 local completedQuestScratch = {}
 
@@ -135,20 +138,6 @@ local function QuestLogDump()
   end
 end
 
-local function AreNumberArraysEqual(lhs, rhs)
-  if #lhs ~= #rhs then
-    return false
-  end
-
-  for i = 1, #lhs do
-    if lhs[i] ~= rhs[i] then
-      return false
-    end
-  end
-
-  return true
-end
-
 local function GetCompletedQuestIds()
   local questIds = {}
   if type(GetQuestsCompleted) ~= "function" then
@@ -171,22 +160,55 @@ local function GetCompletedQuestIds()
   return questIds
 end
 
+local function BuildCompletedQuestSet(questIds)
+  local set = {}
+  for i = 1, #questIds do
+    set[questIds[i]] = true
+  end
+  return set
+end
+
+local function ComputeSetDiff(previousSet, currentSet)
+  local added, removed = {}, {}
+  for questId in pairs(currentSet) do
+    if not previousSet[questId] then
+      added[#added + 1] = questId
+    end
+  end
+  for questId in pairs(previousSet) do
+    if not currentSet[questId] then
+      removed[#removed + 1] = questId
+    end
+  end
+  table.sort(added)
+  table.sort(removed)
+  return added, removed
+end
+
 local function CompletedQuestsDump()
   local questIds = GetCompletedQuestIds()
-  local lastSnapshot = CompletedQuestsHistory[#CompletedQuestsHistory]
+  local currentSet = BuildCompletedQuestSet(questIds)
+  local added, removed = ComputeSetDiff(CompletedQuestsState, currentSet)
 
-  if not lastSnapshot or not AreNumberArraysEqual(questIds, lastSnapshot.questIds) then
+  if #added > 0 or #removed > 0 then
     CompletedQuestsHistory[#CompletedQuestsHistory + 1] = {
       timestamp = GetTime(),
-      questIds = questIds,
+      added = added,
+      removed = removed,
+      count = #questIds,
     }
   end
+
+  CompletedQuestsState = currentSet
+  CompletedQuestsCount = #questIds
 end
 
 function Core.ResetStateTracking()
   QuestHistory = {}
   QuestLogHistory = {}
   CompletedQuestsHistory = {}
+  CompletedQuestsState = {}
+  CompletedQuestsCount = 0
 end
 
 function Core.CaptureQuestState()
@@ -253,7 +275,9 @@ function Core.SerializeCompletedQuestsHistory()
     local snapshot = CompletedQuestsHistory[i]
     serialized[i] = {
       t = snapshot.timestamp,
-      q = ArrayCopy(snapshot.questIds),
+      a = ArrayCopy(snapshot.added),
+      r = ArrayCopy(snapshot.removed),
+      c = snapshot.count,
     }
   end
   return serialized
@@ -268,9 +292,5 @@ function Core.GetCompletedQuestSnapshotCount()
 end
 
 function Core.GetLatestCompletedQuestCount()
-  local lastSnapshot = CompletedQuestsHistory[#CompletedQuestsHistory]
-  if not lastSnapshot then
-    return 0
-  end
-  return #lastSnapshot.questIds
+  return CompletedQuestsCount
 end
