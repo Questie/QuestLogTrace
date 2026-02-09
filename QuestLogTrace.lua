@@ -198,30 +198,24 @@ local function GetTraceCount()
 end
 
 local function EnsureSavedVariables()
-  local previous = QuestLogTrace
-  if type(previous) ~= "table" or previous.schemaVersion ~= SCHEMA_VERSION then
+  local globalDb = QuestLogTrace
+  if type(globalDb) ~= "table" or globalDb.schemaVersion ~= SCHEMA_VERSION then
     QuestLogTrace = {
       schemaVersion = SCHEMA_VERSION,
-      sessions = {},
       settings = {
         maxSessions = DEFAULT_MAX_SESSIONS,
       },
-      ui = {
-        shown = true,
-      },
-      legacy = type(previous) == "table" and previous or nil,
     }
   end
 
-  QuestLogTrace.sessions = type(QuestLogTrace.sessions) == "table" and QuestLogTrace.sessions or {}
   QuestLogTrace.settings = type(QuestLogTrace.settings) == "table" and QuestLogTrace.settings or {}
-  QuestLogTrace.ui = type(QuestLogTrace.ui) == "table" and QuestLogTrace.ui or { shown = true }
 
   if type(QuestLogTrace.settings.maxSessions) ~= "number" or QuestLogTrace.settings.maxSessions < 1 then
     QuestLogTrace.settings.maxSessions = DEFAULT_MAX_SESSIONS
   end
 
   QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
+  QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
 end
 
 local function CapturePlayerStaticInfo()
@@ -243,7 +237,7 @@ local function CapturePlayerStaticInfo()
     sex = sex,
   }
 
-  QuestLogTrace.player = ShallowCopyTable(playerStaticInfo)
+  QuestLogTraceCharacter.player = ShallowCopyTable(playerStaticInfo)
   return true
 end
 
@@ -353,7 +347,7 @@ end
 
 local function PruneSessionsIfNeeded()
   local maxSessions = QuestLogTrace.settings.maxSessions
-  local sessions = QuestLogTrace.sessions
+  local sessions = QuestLogTraceCharacter.sessions
   while #sessions > maxSessions do
     table.remove(sessions, 1)
   end
@@ -473,6 +467,7 @@ function Core.SaveCapture(nameOverride)
   local compactEvents, eventDict = SerializeTraceEvents(session.startLogIndex, stopIndex)
   local questHistory = Core.SerializeQuestHistory and Core.SerializeQuestHistory() or {}
   local questLogHistory = Core.SerializeQuestLogHistory and Core.SerializeQuestLogHistory() or {}
+  local completedQuestsHistory = Core.SerializeCompletedQuestsHistory and Core.SerializeCompletedQuestsHistory() or {}
 
   local record = {
     schemaVersion = SCHEMA_VERSION,
@@ -489,6 +484,7 @@ function Core.SaveCapture(nameOverride)
     state = {
       questHistory = questHistory,
       questLogHistory = questLogHistory,
+      completedQuestsHistory = completedQuestsHistory,
       questEventTriggers = session.questEvents,
       positionSamples = session.positionSamples,
       levelEvents = session.levelEvents,
@@ -498,13 +494,15 @@ function Core.SaveCapture(nameOverride)
       eventCount = #compactEvents,
       questCount = CountTableKeys(questHistory),
       questLogSnapshots = #questLogHistory,
+      completedQuestSnapshots = #completedQuestsHistory,
+      completedQuestCount = (Core.GetLatestCompletedQuestCount and Core.GetLatestCompletedQuestCount()) or 0,
       positionSampleCount = #session.positionSamples,
       levelEventCount = #session.levelEvents,
     },
   }
 
-  QuestLogTrace.sessions[#QuestLogTrace.sessions + 1] = record
-  QuestLogTrace.lastSavedSession = sessionName
+  QuestLogTraceCharacter.sessions[#QuestLogTraceCharacter.sessions + 1] = record
+  QuestLogTraceCharacter.lastSavedSession = sessionName
   QuestLogTraceCharacter.lastSessionSummary = record.summary
 
   PruneSessionsIfNeeded()

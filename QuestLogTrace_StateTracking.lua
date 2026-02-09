@@ -7,6 +7,10 @@ local Core = QuestLogTraceCore
 QuestLogHistory = QuestLogHistory or {}
 ---@type table<number, table<number, QuestHistory>>
 QuestHistory = QuestHistory or {}
+---@type table<number, { timestamp: number, questIds: number[] }>
+CompletedQuestsHistory = CompletedQuestsHistory or {}
+
+local completedQuestScratch = {}
 
 --- Deep compare two values.
 ---@param t1 any
@@ -131,14 +135,64 @@ local function QuestLogDump()
   end
 end
 
+local function AreNumberArraysEqual(lhs, rhs)
+  if #lhs ~= #rhs then
+    return false
+  end
+
+  for i = 1, #lhs do
+    if lhs[i] ~= rhs[i] then
+      return false
+    end
+  end
+
+  return true
+end
+
+local function GetCompletedQuestIds()
+  local questIds = {}
+  if type(GetQuestsCompleted) ~= "function" then
+    return questIds
+  end
+
+  wipe(completedQuestScratch)
+  local completed = GetQuestsCompleted(completedQuestScratch)
+  if type(completed) ~= "table" then
+    return questIds
+  end
+
+  for questId, isCompleted in pairs(completed) do
+    if isCompleted == true then
+      questIds[#questIds + 1] = questId
+    end
+  end
+  table.sort(questIds)
+
+  return questIds
+end
+
+local function CompletedQuestsDump()
+  local questIds = GetCompletedQuestIds()
+  local lastSnapshot = CompletedQuestsHistory[#CompletedQuestsHistory]
+
+  if not lastSnapshot or not AreNumberArraysEqual(questIds, lastSnapshot.questIds) then
+    CompletedQuestsHistory[#CompletedQuestsHistory + 1] = {
+      timestamp = GetTime(),
+      questIds = questIds,
+    }
+  end
+end
+
 function Core.ResetStateTracking()
   QuestHistory = {}
   QuestLogHistory = {}
+  CompletedQuestsHistory = {}
 end
 
 function Core.CaptureQuestState()
   QuestLogDump()
   QuestDump(GetAllQuestIdsInLog())
+  CompletedQuestsDump()
 end
 
 function Core.SerializeQuestHistory()
@@ -193,6 +247,30 @@ function Core.SerializeQuestLogHistory()
   return serialized
 end
 
+function Core.SerializeCompletedQuestsHistory()
+  local serialized = {}
+  for i = 1, #CompletedQuestsHistory do
+    local snapshot = CompletedQuestsHistory[i]
+    serialized[i] = {
+      t = snapshot.timestamp,
+      q = ArrayCopy(snapshot.questIds),
+    }
+  end
+  return serialized
+end
+
 function Core.GetQuestSnapshotCount()
   return #QuestLogHistory
+end
+
+function Core.GetCompletedQuestSnapshotCount()
+  return #CompletedQuestsHistory
+end
+
+function Core.GetLatestCompletedQuestCount()
+  local lastSnapshot = CompletedQuestsHistory[#CompletedQuestsHistory]
+  if not lastSnapshot then
+    return 0
+  end
+  return #lastSnapshot.questIds
 end

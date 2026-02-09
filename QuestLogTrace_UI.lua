@@ -3,31 +3,6 @@ local Core = QuestLogTraceCore
 
 local controlFrame = nil
 
-local function SaveControlFramePosition()
-  if not controlFrame or type(QuestLogTrace) ~= "table" or type(QuestLogTrace.ui) ~= "table" then
-    return
-  end
-
-  local point, _, relativePoint, xOfs, yOfs = controlFrame:GetPoint(1)
-  QuestLogTrace.ui.point = point
-  QuestLogTrace.ui.relativePoint = relativePoint
-  QuestLogTrace.ui.x = xOfs
-  QuestLogTrace.ui.y = yOfs
-end
-
-local function RestoreControlFramePosition()
-  if not controlFrame or type(QuestLogTrace) ~= "table" or type(QuestLogTrace.ui) ~= "table" then
-    return
-  end
-
-  local ui = QuestLogTrace.ui
-  if ui.point and ui.relativePoint and ui.x and ui.y then
-    controlFrame:SetPoint(ui.point, UIParent, ui.relativePoint, ui.x, ui.y)
-  else
-    controlFrame:SetPoint("CENTER", UIParent, "CENTER", 360, -180)
-  end
-end
-
 function Core.UpdateControlFrameStatus()
   if not controlFrame then
     return
@@ -59,6 +34,7 @@ function Core.BuildControlFrame()
 
   local frame = CreateFrame("Frame", "QuestLogTraceControlFrame", UIParent)
   frame:SetSize(250, 100)
+  frame:SetPoint("TOP", UIParent, "TOP", 0, -120)
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)
   frame:EnableMouse(true)
@@ -68,7 +44,6 @@ function Core.BuildControlFrame()
   end)
   frame:SetScript("OnDragStop", function(self)
     self:StopMovingOrSizing()
-    SaveControlFramePosition()
   end)
 
   local bg = frame:CreateTexture(nil, "BACKGROUND")
@@ -140,12 +115,6 @@ function Core.BuildControlFrame()
   end)
 
   controlFrame = frame
-  RestoreControlFramePosition()
-
-  if QuestLogTrace and QuestLogTrace.ui and QuestLogTrace.ui.shown == false then
-    controlFrame:Hide()
-  end
-
   Core.UpdateControlFrameStatus()
 end
 
@@ -156,9 +125,7 @@ function Core.ToggleControlFrame()
 
   if controlFrame:IsShown() then
     controlFrame:Hide()
-    QuestLogTrace.ui.shown = false
   else
     controlFrame:Show()
-    QuestLogTrace.ui.shown = true
   end
 end
