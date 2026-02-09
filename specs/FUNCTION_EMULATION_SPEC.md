@@ -11,7 +11,7 @@ There are two timestamp styles:
   - `state.questLogHistory[*].t`
   - `state.completedQuestsHistory[*].t`
 - Session-relative samples (seconds since `session.startedAt`):
-  - `state.questEventTriggers[*].t`
+  - `state.eventRecords[*].t`
   - `state.positionSamples[*].t`
   - `state.levelEvents[*].t`
   - `trace.events[*].t` (relative to first captured trace event, not session start)
@@ -54,22 +54,45 @@ For a value at target time `t_rel`:
 
 ### Completed Quest Lifetime Set
 - `GetQuestsCompleted([table])`
-- Source: latest `state.completedQuestsHistory[*].q`
-- Rebuild as associative map `{ [questId] = true }`
+- Source: apply deltas in `state.completedQuestsHistory` in order:
+  - add all ids in `a[]`
+  - remove all ids in `r[]`
+- Rebuild as associative map `{ [questId] = true }` at target time.
 
 ### Player Level
 - `UnitLevel("player")`
-- Preferred source: latest `state.positionSamples[*].l`
-- Level transition events available in `state.levelEvents`
+- Source: latest `state.levelEvents[*].l`
+- `state.levelEvents` includes a `CAPTURE_START` baseline entry.
 
 ### Player Map Position
-- `C_Map.GetBestMapForUnit("player")` -> latest `state.positionSamples[*].m`
+- `C_Map.GetBestMapForUnit("player")` -> latest `state.positionLookup[state.positionSamples[*].p].m`
 - `C_Map.GetPlayerMapPosition(map, "player"):GetXY()` -> latest `state.positionSamples[*].x`, `y`
 
 ### Zone Text APIs
-- `GetZoneText()` -> latest `state.positionSamples[*].z`
-- `GetSubZoneText()` -> latest `state.positionSamples[*].sz`
-- `GetRealZoneText()` -> latest `state.positionSamples[*].rz`
+- `GetZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].z`
+- `GetSubZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].sz`
+- `GetRealZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].rz`
+
+### Loot APIs
+- `GetNumLootItems()`
+  - Source: latest `state.lootHistory[*].n` while loot is active.
+- `GetLootSlotInfo(lootSlot)`
+  - Source: latest `state.lootHistory[*].slots[*].l` where `slots[*].i == lootSlot`.
+- `GetLootSourceInfo(lootSlot)`
+  - Source: latest `state.lootHistory[*].slots[*].s` where `slots[*].i == lootSlot`.
+- `GetLootSlotLink(lootSlot)`
+  - Source: latest `state.lootHistory[*].slots[*].k` where `slots[*].i == lootSlot`.
+- `GetLootSlotType(lootSlot)`
+  - Source: latest `state.lootHistory[*].slots[*].t` where `slots[*].i == lootSlot`.
+- Loot snapshots are captured on `LOOT_READY`.
+
+### Reputation APIs
+- `GetFactionInfoByID(factionID)`
+  - Static fields: `state.reputationMeta[factionID]`
+  - Dynamic fields: replay `state.reputationHistory[factionID]` deltas in time order.
+- `GetFactionInfo(factionIndex)`
+  - The addon stores by `factionID` intentionally; reconstructing index-order rows requires an emulator-side view model.
+- Baseline is captured at `CAPTURE_START`; subsequent deltas are captured on `CHAT_MSG_COMBAT_FACTION_CHANGE`.
 
 ### Player Static Identity
 - `UnitRace("player")`, `UnitClass("player")`, `UnitSex("player")`
@@ -77,7 +100,7 @@ For a value at target time `t_rel`:
 
 ### Event Feed (raw)
 - `trace.events` + `trace.eventDict`
-- `state.questEventTriggers`
+- `state.eventRecords`
 - Use these for event-order replay and correlation with state transitions.
 
 ## 4) Replay Construction Strategy
@@ -88,7 +111,8 @@ For a value at target time `t_rel`:
 3. Sort each stream by time.
 4. For query APIs, answer from latest snapshot <= `t_rel`.
 5. For event replay, iterate `trace.events` by index order and/or `t`.
-6. Apply quest/position streams as authoritative state snapshots.
+6. For completed-quest emulation, replay `completedQuestsHistory` deltas up to `t_rel`.
+7. Apply quest/position streams as authoritative state snapshots.
 
 ## 5) Known Limits
 

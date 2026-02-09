@@ -1,6 +1,6 @@
 # Event Catalog
 
-Events are tracked in categorized groups. Category is stored as `c` on trigger/position records.
+Events are tracked in categorized groups for registration and analysis. Categories are not persisted in SavedVariables.
 
 ## `quest_state`
 - `QUEST_LOG_UPDATE`
@@ -41,6 +41,8 @@ Events are tracked in categorized groups. Category is stored as `c` on trigger/p
 - `PLAYER_TARGET_CHANGED`
 - `PLAYER_EQUIPMENT_CHANGED`
 - `LOOT_OPENED`
+- `LOOT_READY`
+- `LOOT_CLOSED`
 - `NEW_RECIPE_LEARNED`
 - `UI_INFO_MESSAGE`
 
@@ -63,7 +65,6 @@ Events are tracked in categorized groups. Category is stored as `c` on trigger/p
 - `CHAT_MSG_TRADESKILLS`
 - `CHAT_MSG_COMBAT_FACTION_CHANGE`
 - `CHAT_MSG_COMBAT_XP_GAIN`
-- `CHAT_MSG_TEXT_EMOTE`
 
 ## `group_world`
 - `GROUP_JOINED`

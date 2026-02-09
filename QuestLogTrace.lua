@@ -5,9 +5,10 @@ QuestLogTraceCore = QuestLogTraceCore or {}
 local Core = QuestLogTraceCore
 
 local ADDON_NAME = "QuestLogTrace"
-local SCHEMA_VERSION = 2
+local SCHEMA_VERSION = 6
 local DEFAULT_MAX_SESSIONS = 20
 local SAMPLE_DELAYS = { 0, 0.10, 0.35, 0.55, 0.75, 1.00 }
+local POSITION_SAMPLE_INTERVAL = 0.20
 
 local capture = {
   active = false,
@@ -63,6 +64,8 @@ local TRACKED_EVENT_CATEGORIES = {
       "PLAYER_TARGET_CHANGED",
       "PLAYER_EQUIPMENT_CHANGED",
       "LOOT_OPENED",
+      "LOOT_READY",
+      "LOOT_CLOSED",
       "NEW_RECIPE_LEARNED",
       "UI_INFO_MESSAGE",
     },
@@ -119,18 +122,32 @@ local TRACKED_EVENT_CATEGORIES = {
 }
 
 local TRACKED_EVENTS = {}
-local EVENT_CATEGORY_BY_EVENT = {}
 do
+  local seen = {}
   for _, category in ipairs(TRACKED_EVENT_CATEGORIES) do
     for _, event in ipairs(category.events) do
-      if not EVENT_CATEGORY_BY_EVENT[event] then
-        EVENT_CATEGORY_BY_EVENT[event] = category.name
+      if not seen[event] then
+        seen[event] = true
         TRACKED_EVENTS[#TRACKED_EVENTS + 1] = event
       end
     end
   end
 end
 Core.TRACKED_EVENT_CATEGORIES = TRACKED_EVENT_CATEGORIES
+
+local POSITION_SAMPLING_EVENTS = {
+  PLAYER_ENTERING_WORLD = true,
+  PLAYER_ALIVE = true,
+  PLAYER_STARTED_MOVING = true,
+  PLAYER_STOPPED_MOVING = true,
+  ZONE_CHANGED = true,
+  ZONE_CHANGED_NEW_AREA = true,
+  ZONE_CHANGED_INDOORS = true,
+  MAP_EXPLORATION_UPDATED = true,
+  PLAYER_MAP_CHANGED = true,
+  AREA_POIS_UPDATED = true,
+  NEW_WMO_CHUNK = true,
+}
 
 local playerStaticInfo = nil
 local playerInfoRetryScheduled = false
@@ -180,6 +197,53 @@ local function CopyPackedArgs(args)
   end
   out.n = n
   return out
+end
+
+local function SerializePositionSamples(samples)
+  local positionLookup = {}
+  local indexByKey = {}
+  local out = {}
+
+  local function EncodePositionKey(m, z, sz, rz)
+    local function part(v)
+      if v == nil then
+        return "<nil>"
+      end
+      return tostring(v)
+    end
+
+    return table.concat({
+      part(m),
+      part(z),
+      part(sz),
+      part(rz),
+    }, "\31")
+  end
+
+  for i = 1, #samples do
+    local sample = samples[i]
+    local key = EncodePositionKey(sample.m, sample.z, sample.sz, sample.rz)
+    local pIndex = indexByKey[key]
+    if not pIndex then
+      pIndex = #positionLookup + 1
+      positionLookup[pIndex] = {
+        m = sample.m,
+        z = sample.z,
+        sz = sample.sz,
+        rz = sample.rz,
+      }
+      indexByKey[key] = pIndex
+    end
+
+    out[i] = {
+      t = sample.t,
+      p = pIndex,
+      x = sample.x,
+      y = sample.y,
+    }
+  end
+
+  return out, positionLookup
 end
 
 local function GetTraceCollection()
@@ -284,7 +348,6 @@ local function BuildPositionState()
     m = mapID,
     x = x,
     y = y,
-    l = UnitLevel("player"),
     z = GetZoneText(),
     sz = GetSubZoneText(),
     rz = GetRealZoneText(),
@@ -299,15 +362,14 @@ local function IsSamePositionState(lhs, rhs)
   return lhs.m == rhs.m and
       lhs.x == rhs.x and
       lhs.y == rhs.y and
-      lhs.l == rhs.l and
       lhs.z == rhs.z and
       lhs.sz == rhs.sz and
       lhs.rz == rhs.rz
 end
 
-local function CapturePlayerPosition(eventName, delay, eventCategory)
+local function CapturePlayerPosition()
   if not capture.active or not capture.current then
-    return nil
+    return false
   end
 
   local state = BuildPositionState()
@@ -320,13 +382,9 @@ local function CapturePlayerPosition(eventName, delay, eventCategory)
 
   local sample = {
     t = GetTime() - capture.current.startedAt,
-    e = eventName,
-    c = eventCategory,
-    d = delay or 0,
     m = state.m,
     x = state.x,
     y = state.y,
-    l = state.l,
     z = state.z,
     sz = state.sz,
     rz = state.rz,
@@ -335,7 +393,16 @@ local function CapturePlayerPosition(eventName, delay, eventCategory)
   table.insert(capture.current.positionSamples, sample)
   local newIndex = #capture.current.positionSamples
   capture.current.lastPositionSampleIndex = newIndex
-  return newIndex
+  return true
+end
+
+local function ScheduleNextPositionSample(token)
+  C_After(POSITION_SAMPLE_INTERVAL, function()
+    if capture.active and capture.current and capture.current.token == token then
+      CapturePlayerPosition()
+      ScheduleNextPositionSample(token)
+    end
+  end)
 end
 
 local function SerializeTraceEvents(startLogIndex, endLogIndex)
@@ -375,6 +442,7 @@ local function SerializeTraceEvents(startLogIndex, endLogIndex)
         f = eventData.frameCounter or 0,
         a = CopyPackedArgs(eventData.args),
       }
+
     end
   end
 
@@ -440,10 +508,17 @@ function Core.StartCapture(sessionName)
     startedAt = GetTime(),
     startLogIndex = GetTraceCount(),
     endLogIndex = nil,
-    questEvents = {},
+    eventRecords = {},
     positionSamples = {},
     lastPositionSampleIndex = nil,
-    levelEvents = {},
+    levelEvents = {
+      {
+        t = 0,
+        e = "CAPTURE_START",
+        l = UnitLevel("player"),
+        a = { n = 0 },
+      },
+    },
     player = ShallowCopyTable(playerStaticInfo),
   }
   capture.active = true
@@ -451,14 +526,17 @@ function Core.StartCapture(sessionName)
   if Core.CaptureQuestState then
     Core.CaptureQuestState()
   end
-  CapturePlayerPosition("CAPTURE_START", 0, "system")
+  if Core.CaptureReputationState then
+    Core.CaptureReputationState("CAPTURE_START")
+  end
+  CapturePlayerPosition()
+  ScheduleNextPositionSample(token)
 
   C_After(0.20, function()
     if capture.active and capture.current and capture.current.token == token then
       if Core.CaptureQuestState then
         Core.CaptureQuestState()
       end
-      CapturePlayerPosition("CAPTURE_START_DELAY", 0.20, "system")
       if Core.UpdateControlFrameStatus then
         Core.UpdateControlFrameStatus()
       end
@@ -477,6 +555,7 @@ function Core.StopCapture()
     return
   end
 
+  CapturePlayerPosition()
   capture.current.stoppedAt = GetTime()
   capture.current.endLogIndex = GetTraceCount()
   capture.active = false
@@ -502,9 +581,15 @@ function Core.SaveCapture(nameOverride)
   local stopIndex = session.endLogIndex or GetTraceCount()
 
   local compactEvents, eventDict = SerializeTraceEvents(session.startLogIndex, stopIndex)
+  local serializedPositionSamples, positionLookup = SerializePositionSamples(session.positionSamples)
   local questHistory = Core.SerializeQuestHistory and Core.SerializeQuestHistory() or {}
   local questLogHistory = Core.SerializeQuestLogHistory and Core.SerializeQuestLogHistory() or {}
   local completedQuestsHistory = Core.SerializeCompletedQuestsHistory and Core.SerializeCompletedQuestsHistory() or {}
+  local lootHistory = Core.SerializeLootHistory and Core.SerializeLootHistory() or {}
+  local reputationHistory, reputationMeta, reputationFactionCount, reputationSnapshotCount = {}, {}, 0, 0
+  if Core.SerializeReputationHistory then
+    reputationHistory, reputationMeta, reputationFactionCount, reputationSnapshotCount = Core.SerializeReputationHistory()
+  end
 
   local record = {
     schemaVersion = SCHEMA_VERSION,
@@ -522,18 +607,26 @@ function Core.SaveCapture(nameOverride)
       questHistory = questHistory,
       questLogHistory = questLogHistory,
       completedQuestsHistory = completedQuestsHistory,
-      questEventTriggers = session.questEvents,
-      positionSamples = session.positionSamples,
+      eventRecords = session.eventRecords,
+      positionSamples = serializedPositionSamples,
+      positionLookup = positionLookup,
       levelEvents = session.levelEvents,
+      lootHistory = lootHistory,
+      reputationHistory = reputationHistory,
+      reputationMeta = reputationMeta,
     },
     player = session.player or ShallowCopyTable(playerStaticInfo),
     summary = {
       eventCount = #compactEvents,
       questCount = CountTableKeys(questHistory),
+      trackedEventCount = #session.eventRecords,
       questLogSnapshots = #questLogHistory,
       completedQuestSnapshots = #completedQuestsHistory,
+      lootSnapshotCount = #lootHistory,
+      reputationFactionCount = reputationFactionCount,
+      reputationSnapshotCount = reputationSnapshotCount,
       completedQuestCount = (Core.GetLatestCompletedQuestCount and Core.GetLatestCompletedQuestCount()) or 0,
-      positionSampleCount = #session.positionSamples,
+      positionSampleCount = #serializedPositionSamples,
       levelEventCount = #session.levelEvents,
     },
   }
@@ -565,23 +658,35 @@ local function ProcessTrackedEvent(event, ...)
     return
   end
 
-  local eventCategory = EVENT_CATEGORY_BY_EVENT[event] or "uncategorized"
+  local packedArgs = CopyPackedArgs(safePack(...))
   local triggerRecord = {
     e = event,
-    c = eventCategory,
     t = GetTime() - capture.current.startedAt,
-    a = CopyPackedArgs(safePack(...)),
-    pi = CapturePlayerPosition(event, 0, eventCategory),
+    a = packedArgs,
   }
-  table.insert(capture.current.questEvents, triggerRecord)
+  table.insert(capture.current.eventRecords, triggerRecord)
+
+  if event == "LOOT_READY" and Core.CaptureLootState then
+    local hasLoot = Core.CaptureLootState(event)
+    if hasLoot then
+      CapturePlayerPosition()
+    end
+  end
+
+  if event == "CHAT_MSG_COMBAT_FACTION_CHANGE" and Core.CaptureReputationState then
+    Core.CaptureReputationState(event)
+  end
+
+  if POSITION_SAMPLING_EVENTS[event] then
+    CapturePlayerPosition()
+  end
 
   if event == "PLAYER_LEVEL_UP" then
     table.insert(capture.current.levelEvents, {
       t = GetTime() - capture.current.startedAt,
       e = event,
-      c = eventCategory,
       l = UnitLevel("player"),
-      a = CopyPackedArgs(safePack(...)),
+      a = CopyPackedArgs(packedArgs),
     })
   end
 
@@ -607,7 +712,6 @@ local function ProcessTrackedEvent(event, ...)
         if Core.CaptureQuestState then
           Core.CaptureQuestState()
         end
-        CapturePlayerPosition(event, delay, eventCategory)
         if Core.UpdateControlFrameStatus then
           Core.UpdateControlFrameStatus()
         end

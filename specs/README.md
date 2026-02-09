@@ -15,5 +15,5 @@ Use these files together:
 
 Versioning:
 
-- Current data schema version: `2`
+- Current data schema version: `6`
 - Saved in `QuestLogTrace.schemaVersion`
