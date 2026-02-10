@@ -7,7 +7,7 @@ This file captures the design discussion so it is not lost.
 Three top-level concepts:
 
 - `events` = raw time-series of game signals. Already good, no changes needed.
-- `functions` = per-function value streams. A flat array of `{t, v}` entries.
+- `functions` = per-function value streams. A flat array of `{t, tp, v}` entries.
   The first entry is the full value captured at session start. Subsequent entries
   appear only when the value changes. The latest entry is always the current value.
 - `functionsDelta` = set-based function streams that are too large to store as
@@ -33,51 +33,51 @@ the value changes. One flat list per function.
 
 ### Parameterless functions — flat array
 
-Functions with no arguments are stored as a flat `{t, v}` array directly:
+Functions with no arguments are stored as a flat `{t, tp, v}` array directly:
 
 ```lua
 ["GetZoneText"] = {
-  { t = 0.000, v = "Dun Morogh" },
-  { t = 90.000, v = "Stormwind City" },
+  { t = 0.000, tp = 0.00015, v = "Dun Morogh" },
+  { t = 90.000, tp = 90.00022, v = "Stormwind City" },
 }
 
 ["GetNumLootItems"] = {
-  { t = 0.000, v = 0 },          -- session start, no loot window
-  { t = 45.200, v = 2 },         -- LOOT_READY fired
-  { t = 48.100, v = 0 },         -- LOOT_CLOSED fired
+  { t = 0.000, tp = 0.00018, v = 0 },          -- session start, no loot window
+  { t = 45.200, tp = 45.20025, v = 2 },         -- LOOT_READY fired
+  { t = 48.100, tp = 48.10012, v = 0 },         -- LOOT_CLOSED fired
 }
 ```
 
 ### Parameterized functions — keyed by argument
 
 Functions that take arguments are stored as a table keyed by the argument
-value. Each key maps to a `{t, v}` array. The key is the actual value you
+value. Each key maps to a `{t, tp, v}` array. The key is the actual value you
 would pass to the function (number, string, etc.).
 
 ```lua
 ["UnitLevel"] = {
   ["player"] = {
-    { t = 0.000, v = 12 },
-    { t = 5.213, v = 13 },
+    { t = 0.000, tp = 0.00020, v = 12 },
+    { t = 5.213, tp = 5.21350, v = 13 },
   },
 }
 
 ["GetLootSlotInfo"] = {
   [1] = {
-    { t = 45.200, v = { "Icon\\Path", "Copper Coin", 1, n = 9 } },
-    { t = 48.100, v = nil },
+    { t = 45.200, tp = 45.20030, v = { "Icon\\Path", "Copper Coin", 1, n = 9 } },
+    { t = 48.100, tp = 48.10015, v = nil },
   },
   [2] = {
-    { t = 45.200, v = { "Icon\\Path", "Linen Cloth", 2, n = 9 } },
-    { t = 48.100, v = nil },
+    { t = 45.200, tp = 45.20031, v = { "Icon\\Path", "Linen Cloth", 2, n = 9 } },
+    { t = 48.100, tp = 48.10016, v = nil },
   },
 }
 
 ["C_Map.GetPlayerMapPosition"] = {
   ["player"] = {
-    { t = 0.000, v = { x = 0.5477, y = 0.5486 } },
-    { t = 0.200, v = { x = 0.5480, y = 0.5490 } },
-    { t = 90.000, v = { x = 0.6111, y = 0.7422 } },
+    { t = 0.000, tp = 0.00025, v = { x = 0.5477, y = 0.5486 } },
+    { t = 0.200, tp = 0.20010, v = { x = 0.5480, y = 0.5490 } },
+    { t = 90.000, tp = 90.00030, v = { x = 0.6111, y = 0.7422 } },
   },
 }
 ```
@@ -95,6 +95,32 @@ both cases — no special conventions or sentinel keys needed.
 - Parameterized: `functions[name][param]` → find latest `entry.t <= target_t`
 
 Same algorithm once you have the stream. Same logic for every function.
+
+### Return value format — tuples vs objects vs scalars
+
+The stored `v` tells the emulator how to return it:
+
+- **Tuple** (old-style APIs like `GetFactionInfoByID`, `UnitRace`, `GetQuestLogTitle`):
+  stored as a packed-args table with `n`. The emulator returns `unpack(v, 1, v.n)`.
+- **Object/table** (newer APIs like `C_QuestLog.GetQuestObjectives`, `C_Map.GetPlayerMapPosition`):
+  stored as a plain table without `n`. The emulator returns `v` directly.
+- **Scalar** (single values like `UnitLevel`, `GetZoneText`, `IsQuestComplete`):
+  stored as the raw value (number, string, boolean, nil). The emulator returns `v` directly.
+
+The `n` field is the discriminator. If `type(v) == "table" and v.n` then it is
+a packed tuple; otherwise return `v` as-is.
+
+```lua
+-- Generic emulator return:
+if type(v) == "table" and v.n then
+  return unpack(v, 1, v.n)   -- tuple
+else
+  return v                     -- scalar or object
+end
+```
+
+**All tuple-returning functions MUST store `n` on every value.** This is what
+makes the format self-describing — no function registry needed.
 
 ---
 
@@ -165,143 +191,143 @@ Session = {
   functions = {
     -- Parameterless: flat arrays
     ["GetZoneText"] = {
-      { t = 0.000, v = "Dun Morogh" },
-      { t = 90.000, v = "Stormwind City" },
+      { t = 0.000, tp = 0.00015, v = "Dun Morogh" },
+      { t = 90.000, tp = 90.00022, v = "Stormwind City" },
     },
     ["GetSubZoneText"] = {
-      { t = 0.000, v = "Coldridge Valley" },
-      { t = 90.000, v = "Trade District" },
+      { t = 0.000, tp = 0.00016, v = "Coldridge Valley" },
+      { t = 90.000, tp = 90.00023, v = "Trade District" },
     },
     ["GetRealZoneText"] = {
-      { t = 0.000, v = "Dun Morogh" },
-      { t = 90.000, v = "Stormwind City" },
+      { t = 0.000, tp = 0.00017, v = "Dun Morogh" },
+      { t = 90.000, tp = 90.00024, v = "Stormwind City" },
     },
     ["GetNumLootItems"] = {
-      { t = 0.000, v = 0 },
-      { t = 45.200, v = 2 },
-      { t = 48.100, v = 0 },
+      { t = 0.000, tp = 0.00018, v = 0 },
+      { t = 45.200, tp = 45.20025, v = 2 },
+      { t = 48.100, tp = 48.10012, v = 0 },
     },
 
     -- Quest log membership: full array, small enough to store each time
     ["QuestLog"] = {
-      { t = 0.000, v = { 12345 } },
-      { t = 0.500, v = { 12345, 56789 } },           -- quest accepted
-      { t = 50.000, v = { 12345 } },                   -- quest turned in
+      { t = 0.000, tp = 0.00019, v = { 12345 } },
+      { t = 0.500, tp = 0.50025, v = { 12345, 56789 } },           -- quest accepted
+      { t = 50.000, tp = 50.00010, v = { 12345 } },                  -- quest turned in
     },
 
     -- Parameterized: keyed by argument
     ["UnitLevel"] = {
       ["player"] = {
-        { t = 0.000, v = 12 },
-        { t = 5.213, v = 13 },
+        { t = 0.000, tp = 0.00020, v = 12 },
+        { t = 5.213, tp = 5.21350, v = 13 },
       },
     },
     ["C_Map.GetBestMapForUnit"] = {
       ["player"] = {
-        { t = 0.000, v = 1426 },
-        { t = 90.000, v = 1453 },
+        { t = 0.000, tp = 0.00021, v = 1426 },
+        { t = 90.000, tp = 90.00026, v = 1453 },
       },
     },
     ["C_Map.GetPlayerMapPosition"] = {
       ["player"] = {
-        { t = 0.000, v = { x = 0.5477, y = 0.5486 } },
-        { t = 5.200, v = { x = 0.5520, y = 0.5539 } },
-        { t = 90.000, v = { x = 0.6111, y = 0.7422 } },
+        { t = 0.000, tp = 0.00022, v = { x = 0.5477, y = 0.5486 } },
+        { t = 5.200, tp = 5.20010, v = { x = 0.5520, y = 0.5539 } },
+        { t = 90.000, tp = 90.00027, v = { x = 0.6111, y = 0.7422 } },
       },
     },
 
     -- Per-quest functions: parameterized by questId
     ["IsQuestComplete"] = {
       [56789] = {
-        { t = 0.500, v = false },
-        { t = 49.000, v = true },
+        { t = 0.500, tp = 0.50030, v = false },
+        { t = 49.000, tp = 49.00015, v = true },
       },
     },
     ["C_QuestLog.IsQuestFlaggedCompleted"] = {
       [56789] = {
-        { t = 0.500, v = false },
-        { t = 50.000, v = true },
+        { t = 0.500, tp = 0.50031, v = false },
+        { t = 50.000, tp = 50.00015, v = true },
       },
     },
     ["C_QuestLog.GetQuestObjectives"] = {
       [56789] = {
-        { t = 0.500, v = {
+        { t = 0.500, tp = 0.50032, v = {
           { text = " : 0/8", type = "item", finished = false, numFulfilled = 0, numRequired = 8 },
         }},
-        { t = 0.850, v = {
+        { t = 0.850, tp = 0.85010, v = {
           { text = "Tough Condor Meat: 0/8", type = "item", finished = false, numFulfilled = 0, numRequired = 8 },
         }},
-        { t = 30.000, v = {
+        { t = 30.000, tp = 30.00018, v = {
           { text = "Tough Condor Meat: 5/8", type = "item", finished = false, numFulfilled = 5, numRequired = 8 },
         }},
-        { t = 49.000, v = {
+        { t = 49.000, tp = 49.00020, v = {
           { text = "Tough Condor Meat: 8/8", type = "item", finished = true, numFulfilled = 8, numRequired = 8 },
         }},
       },
     },
     ["GetQuestLogTitle"] = {
       [56789] = {
-        { t = 0.500, v = { "A New Threat", 2, false, false, false, false, false, 56789 } },
-        { t = 49.000, v = { "A New Threat", 2, true, false, false, false, false, 56789 } },
+        { t = 0.500, tp = 0.50033, v = { "A New Threat", 2, false, false, false, false, false, 56789, n = 8 } },
+        { t = 49.000, tp = 49.00021, v = { "A New Threat", 2, true, false, false, false, false, 56789, n = 8 } },
       },
     },
     ["GetQuestTagInfo"] = {
       [56789] = {
-        { t = 0.500, v = {} },
+        { t = 0.500, tp = 0.50034, v = { n = 0 } },
       },
     },
 
     -- Loot functions: parameterized by slot index
     ["GetLootSlotInfo"] = {
       [1] = {
-        { t = 45.200, v = { "Icon\\Path", "Copper Coin", 1, n = 9 } },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20030, v = { "Icon\\Path", "Copper Coin", 1, n = 9 } },
+        { t = 48.100, tp = 48.10015, v = nil },
       },
       [2] = {
-        { t = 45.200, v = { "Icon\\Path", "Linen Cloth", 2, n = 9 } },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20031, v = { "Icon\\Path", "Linen Cloth", 2, n = 9 } },
+        { t = 48.100, tp = 48.10016, v = nil },
       },
     },
     ["GetLootSourceInfo"] = {
       [1] = {
-        { t = 45.200, v = { "Creature-0-0-0-0-197-0000000001", 1, n = 2 } },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20032, v = { "Creature-0-0-0-0-197-0000000001", 1, n = 2 } },
+        { t = 48.100, tp = 48.10017, v = nil },
       },
       [2] = {
-        { t = 45.200, v = { "Creature-0-0-0-0-197-0000000001", 1, n = 2 } },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20033, v = { "Creature-0-0-0-0-197-0000000001", 1, n = 2 } },
+        { t = 48.100, tp = 48.10018, v = nil },
       },
     },
     ["GetLootSlotLink"] = {
       [1] = {
-        { t = 45.200, v = "|cff...|Hitem:...|h[Copper Coin]|h|r" },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20034, v = "|cff...|Hitem:...|h[Copper Coin]|h|r" },
+        { t = 48.100, tp = 48.10019, v = nil },
       },
       [2] = {
-        { t = 45.200, v = "|cff...|Hitem:...|h[Linen Cloth]|h|r" },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20035, v = "|cff...|Hitem:...|h[Linen Cloth]|h|r" },
+        { t = 48.100, tp = 48.10020, v = nil },
       },
     },
     ["GetLootSlotType"] = {
       [1] = {
-        { t = 45.200, v = 1 },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20036, v = 1 },
+        { t = 48.100, tp = 48.10021, v = nil },
       },
       [2] = {
-        { t = 45.200, v = 1 },
-        { t = 48.100, v = nil },
+        { t = 45.200, tp = 45.20037, v = 1 },
+        { t = 48.100, tp = 48.10022, v = nil },
       },
     },
 
     -- Player identity: parameterized, sampled once at t=0, never changes
     ["UnitRace"] = {
-      ["player"] = { { t = 0.000, v = { "Dwarf", "Dwarf", 3 } } },
+      ["player"] = { { t = 0.000, tp = 0.00023, v = { "Dwarf", "Dwarf", 3, n = 3 } } },
     },
     ["UnitClass"] = {
-      ["player"] = { { t = 0.000, v = { "Priest", "PRIEST", 5 } } },
+      ["player"] = { { t = 0.000, tp = 0.00024, v = { "Priest", "PRIEST", 5, n = 3 } } },
     },
     ["UnitSex"] = {
-      ["player"] = { { t = 0.000, v = 2 } },
+      ["player"] = { { t = 0.000, tp = 0.00025, v = 2 } },
     },
   },
 
@@ -324,7 +350,7 @@ Session = {
 
 On `StartCapture`:
 
-- Sample each function once and write the first `{t=0, v=...}` entry.
+- Sample each function once and write the first `{t=0, tp=0, v=...}` entry.
 - No synthetic events like `CAPTURE_START`.
 
 On each game event:
@@ -394,13 +420,13 @@ No positionLookup indirection. Each stream is self-contained.
 
 ```lua
 -- Parameterless position functions
-["GetZoneText"]     = { { t = 0.0, v = "Dun Morogh" }, { t = 90.0, v = "Stormwind City" } }
-["GetSubZoneText"]  = { { t = 0.0, v = "Coldridge Valley" }, { t = 90.0, v = "Trade District" } }
-["GetRealZoneText"] = { { t = 0.0, v = "Dun Morogh" }, { t = 90.0, v = "Stormwind City" } }
+["GetZoneText"]     = { { t = 0.0, tp = 0.00015, v = "Dun Morogh" }, { t = 90.0, tp = 90.00022, v = "Stormwind City" } }
+["GetSubZoneText"]  = { { t = 0.0, tp = 0.00016, v = "Coldridge Valley" }, { t = 90.0, tp = 90.00023, v = "Trade District" } }
+["GetRealZoneText"] = { { t = 0.0, tp = 0.00017, v = "Dun Morogh" }, { t = 90.0, tp = 90.00024, v = "Stormwind City" } }
 
 -- Parameterized position functions
-["C_Map.GetBestMapForUnit"]    = { ["player"] = { { t = 0.0, v = 1426 }, { t = 90.0, v = 1453 } } }
-["C_Map.GetPlayerMapPosition"] = { ["player"] = { { t = 0.0, v = { x = 0.5477, y = 0.5486 } }, ... } }
+["C_Map.GetBestMapForUnit"]    = { ["player"] = { { t = 0.0, tp = 0.00021, v = 1426 }, { t = 90.0, tp = 90.00026, v = 1453 } } }
+["C_Map.GetPlayerMapPosition"] = { ["player"] = { { t = 0.0, tp = 0.00022, v = { x = 0.5477, y = 0.5486 } }, ... } }
 ```
 
 ---
@@ -454,9 +480,9 @@ storing the full array each time it changes is acceptable.
 
 ```lua
 ["QuestLog"] = {
-  { t = 0.000, v = { 12345 } },
-  { t = 0.500, v = { 12345, 56789 } },
-  { t = 50.000, v = { 12345 } },
+  { t = 0.000, tp = 0.00019, v = { 12345 } },
+  { t = 0.500, tp = 0.50025, v = { 12345, 56789 } },
+  { t = 50.000, tp = 50.00010, v = { 12345 } },
 }
 ```
 
