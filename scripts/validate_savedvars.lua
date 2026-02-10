@@ -91,16 +91,15 @@ for sIndex = 1, #sessions do
   if type(s) ~= "table" then
     issue(sPrefix .. " is not a table")
   else
-    if type(s.trace) ~= "table" then issue(sPrefix .. ".trace missing") end
     if type(s.state) ~= "table" then issue(sPrefix .. ".state missing") end
     if type(s.summary) ~= "table" then issue(sPrefix .. ".summary missing") end
+    if s.trace ~= nil then
+      warn(sPrefix .. ".trace is legacy and ignored")
+    end
 
-    local trace = s.trace or {}
     local state = s.state or {}
     local summary = s.summary or {}
 
-    local events = trace.events or {}
-    local eventDict = trace.eventDict or {}
     local eventRecords = state.eventRecords or state.questEventTriggers or {}
     local positionSamples = state.positionSamples or {}
     local levelEvents = state.levelEvents or {}
@@ -112,8 +111,6 @@ for sIndex = 1, #sessions do
     local completed = state.completedQuestsHistory or {}
     local positionLookup = state.positionLookup or nil
 
-    if type(events) ~= "table" then issue(sPrefix .. ".trace.events not table") end
-    if type(eventDict) ~= "table" then issue(sPrefix .. ".trace.eventDict not table") end
     if type(eventRecords) ~= "table" then issue(sPrefix .. ".state.eventRecords not table") end
     if type(positionSamples) ~= "table" then issue(sPrefix .. ".state.positionSamples not table") end
     if type(levelEvents) ~= "table" then issue(sPrefix .. ".state.levelEvents not table") end
@@ -161,32 +158,6 @@ for sIndex = 1, #sessions do
           issue(sPrefix .. ".state.positionLookup has unknown format")
         end
       end
-    end
-
-    -- trace checks
-    do
-    local prevT = -math.huge
-    for i = 1, #events do
-      local ev = events[i]
-      if type(ev) ~= "table" then
-        issue(sPrefix .. string.format(".trace.events[%d] not table", i))
-      else
-        local eId = ev.e
-        if type(eId) ~= "number" or eId < 1 or eId % 1 ~= 0 then
-          issue(sPrefix .. string.format(".trace.events[%d].e invalid", i))
-        elseif eventDict[eId] == nil then
-          issue(sPrefix .. string.format(".trace.events[%d].e out of eventDict range", i))
-        end
-
-        if type(ev.t) ~= "number" then
-          issue(sPrefix .. string.format(".trace.events[%d].t not number", i))
-        elseif ev.t < prevT then
-          issue(sPrefix .. string.format(".trace.events[%d].t decreased", i))
-        else
-          prevT = ev.t
-        end
-      end
-    end
     end
 
     -- tracked event record checks
@@ -504,11 +475,11 @@ for sIndex = 1, #sessions do
     -- summary consistency checks
     do
     local qCount = count_keys(questHistory)
-    if summary.eventCount ~= nil and summary.eventCount ~= #events then
+    if summary.eventCount ~= nil and summary.eventCount ~= #eventRecords then
       warn(sPrefix .. ".summary.eventCount mismatch")
     end
-    if summary.trackedEventCount ~= nil and summary.trackedEventCount ~= #eventRecords then
-      warn(sPrefix .. ".summary.trackedEventCount mismatch")
+    if summary.trackedEventCount ~= nil then
+      warn(sPrefix .. ".summary.trackedEventCount is legacy")
     end
     if summary.questCount ~= nil and summary.questCount ~= qCount then
       warn(sPrefix .. ".summary.questCount mismatch")

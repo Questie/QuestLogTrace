@@ -5,10 +5,11 @@ QuestLogTraceCore = QuestLogTraceCore or {}
 local Core = QuestLogTraceCore
 
 local ADDON_NAME = "QuestLogTrace"
-local SCHEMA_VERSION = 6
+local SCHEMA_VERSION = 7
 local DEFAULT_MAX_SESSIONS = 20
 local SAMPLE_DELAYS = { 0, 0.10, 0.35, 0.55, 0.75, 1.00 }
 local POSITION_SAMPLE_INTERVAL = 0.20
+local POSITION_DECIMALS = 4
 
 local capture = {
   active = false,
@@ -199,6 +200,14 @@ local function CopyPackedArgs(args)
   return out
 end
 
+local function round(num, numDecimalPlaces)
+  if type(num) ~= "number" then
+    return num
+  end
+  local mult = 10 ^ (numDecimalPlaces or 0)
+  return math.floor(num * mult + 0.5) / mult
+end
+
 local function SerializePositionSamples(samples)
   local positionLookup = {}
   local indexByKey = {}
@@ -244,21 +253,6 @@ local function SerializePositionSamples(samples)
   end
 
   return out, positionLookup
-end
-
-local function GetTraceCollection()
-  if QLTrace and QLTrace.logDataProvider and QLTrace.logDataProvider.collection then
-    return QLTrace.logDataProvider.collection
-  end
-  return nil
-end
-
-local function GetTraceCount()
-  local collection = GetTraceCollection()
-  if not collection then
-    return 0
-  end
-  return #collection
 end
 
 local function EnsureSavedVariables()
@@ -341,6 +335,8 @@ local function BuildPositionState()
     local position = C_Map.GetPlayerMapPosition(mapID, "player")
     if position then
       x, y = position:GetXY()
+      x = round(x, POSITION_DECIMALS)
+      y = round(y, POSITION_DECIMALS)
     end
   end
 
@@ -405,50 +401,6 @@ local function ScheduleNextPositionSample(token)
   end)
 end
 
-local function SerializeTraceEvents(startLogIndex, endLogIndex)
-  local collection = GetTraceCollection()
-  if not collection then
-    return {}, {}
-  end
-
-  local dict = {}
-  local dictMap = {}
-  local rows = {}
-
-  local firstIndex = math.max((startLogIndex or 0) + 1, 1)
-  local lastIndex = math.min(endLogIndex or #collection, #collection)
-  local firstRelativeTimestamp = nil
-
-  for index = firstIndex, lastIndex do
-    local eventData = collection[index]
-    if eventData and eventData.event then
-      local eventName = eventData.event
-      local eventId = dictMap[eventName]
-      if not eventId then
-        eventId = #dict + 1
-        dict[eventId] = eventName
-        dictMap[eventName] = eventId
-      end
-
-      local relativeTimestamp = eventData.relativeTimestamp or 0
-      if firstRelativeTimestamp == nil then
-        firstRelativeTimestamp = relativeTimestamp
-      end
-
-      rows[#rows + 1] = {
-        i = eventData.id or index,
-        e = eventId,
-        t = relativeTimestamp - firstRelativeTimestamp,
-        f = eventData.frameCounter or 0,
-        a = CopyPackedArgs(eventData.args),
-      }
-
-    end
-  end
-
-  return rows, dict
-end
-
 local function PruneSessionsIfNeeded()
   local maxSessions = QuestLogTrace.settings.maxSessions
   local sessions = QuestLogTraceCharacter.sessions
@@ -470,13 +422,7 @@ local function GetCurrentCapturedEventCount()
     return 0
   end
 
-  local start = capture.current.startLogIndex or 0
-  local finish = capture.current.endLogIndex or GetTraceCount()
-  if finish < start then
-    return 0
-  end
-
-  return finish - start
+  return #capture.current.eventRecords
 end
 
 function Core.GetStatusData()
@@ -506,8 +452,6 @@ function Core.StartCapture(sessionName)
     token = token,
     name = Trim(sessionName) ~= "" and Trim(sessionName) or nil,
     startedAt = GetTime(),
-    startLogIndex = GetTraceCount(),
-    endLogIndex = nil,
     eventRecords = {},
     positionSamples = {},
     lastPositionSampleIndex = nil,
@@ -557,7 +501,6 @@ function Core.StopCapture()
 
   CapturePlayerPosition()
   capture.current.stoppedAt = GetTime()
-  capture.current.endLogIndex = GetTraceCount()
   capture.active = false
 
   print(ADDON_NAME, "Capture stopped.")
@@ -578,9 +521,6 @@ function Core.SaveCapture(nameOverride)
 
   local session = capture.current
   local sessionName = CreateSessionName(nameOverride or session.name)
-  local stopIndex = session.endLogIndex or GetTraceCount()
-
-  local compactEvents, eventDict = SerializeTraceEvents(session.startLogIndex, stopIndex)
   local serializedPositionSamples, positionLookup = SerializePositionSamples(session.positionSamples)
   local questHistory = Core.SerializeQuestHistory and Core.SerializeQuestHistory() or {}
   local questLogHistory = Core.SerializeQuestLogHistory and Core.SerializeQuestLogHistory() or {}
@@ -597,12 +537,6 @@ function Core.SaveCapture(nameOverride)
     startedAt = session.startedAt,
     stoppedAt = session.stoppedAt or GetTime(),
     duration = (session.stoppedAt or GetTime()) - session.startedAt,
-    trace = {
-      eventDict = eventDict,
-      events = compactEvents,
-      startLogIndex = session.startLogIndex,
-      endLogIndex = stopIndex,
-    },
     state = {
       questHistory = questHistory,
       questLogHistory = questLogHistory,
@@ -617,9 +551,8 @@ function Core.SaveCapture(nameOverride)
     },
     player = session.player or ShallowCopyTable(playerStaticInfo),
     summary = {
-      eventCount = #compactEvents,
+      eventCount = #session.eventRecords,
       questCount = CountTableKeys(questHistory),
-      trackedEventCount = #session.eventRecords,
       questLogSnapshots = #questLogHistory,
       completedQuestSnapshots = #completedQuestsHistory,
       lootSnapshotCount = #lootHistory,

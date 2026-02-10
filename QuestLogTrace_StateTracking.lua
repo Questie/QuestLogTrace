@@ -280,7 +280,6 @@ local function CollectAllFactions()
     return factions
   end
 
-  local collapsedHeaders = {}
   local numFactions = GetNumFactions() or 0
   local factionIndex = 1
   while factionIndex <= numFactions do
@@ -309,18 +308,11 @@ local function CollectAllFactions()
     end
 
     if isHeader and isCollapsed and type(ExpandFactionHeader) == "function" then
-      collapsedHeaders[#collapsedHeaders + 1] = factionIndex
       ExpandFactionHeader(factionIndex)
       numFactions = GetNumFactions() or numFactions
     end
 
     factionIndex = factionIndex + 1
-  end
-
-  if type(CollapseFactionHeader) == "function" then
-    for i = #collapsedHeaders, 1, -1 do
-      CollapseFactionHeader(collapsedHeaders[i])
-    end
   end
 
   return factions
