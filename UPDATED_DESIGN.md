@@ -319,6 +319,34 @@ Session = {
       },
     },
 
+    -- Reputation: faction order (for index-based lookup)
+    ["FactionOrder"] = {
+      { t = 0.000, tp = 0.00042, v = { 47, 72, 54, 69, 930, 509, 87, 21 } },
+    },
+
+    -- Reputation: parameterized by factionID, full 16-value tuple as returned by API
+    ["GetFactionInfoByID"] = {
+      [47] = {  -- Ironforge
+        { t = 0.000, tp = 0.00043, v = {
+          "Ironforge", "Home city of the Dwarves.", 5, 3000, 9000, 4500,
+          false, false, false, false, true, false, 47, true, false, false,
+          n = 16,
+        }},
+        { t = 120.500, tp = 120.50018, v = {
+          "Ironforge", "Home city of the Dwarves.", 5, 3000, 9000, 4520,
+          false, false, false, false, true, false, 47, true, false, false,
+          n = 16,
+        }},
+      },
+      [72] = {  -- Stormwind
+        { t = 0.000, tp = 0.00044, v = {
+          "Stormwind", "Alliance capital.", 6, 9000, 21000, 15200,
+          false, false, false, false, true, false, 72, false, false, false,
+          n = 16,
+        }},
+      },
+    },
+
     -- Player identity: parameterized, sampled once at t=0, never changes
     ["UnitRace"] = {
       ["player"] = { { t = 0.000, tp = 0.00023, v = { "Dwarf", "Dwarf", 3, n = 3 } } },
@@ -451,12 +479,22 @@ tracker file directly, the same way it already calls `Core.CaptureReputationStat
 
 ---
 
-## 8) Event routing improvement
+## 8) Event routing
 
-Current code runs `CaptureQuestState()` on every single event including noisy
-irrelevant ones (inventory, chat, nameplates). This should be gated so that
-only relevant events trigger each tracker. The file split naturally supports
-this — each tracker file knows which events it cares about.
+Each tracker file registers which events it cares about. The event bus in
+`QuestLogTrace.lua` dispatches incoming events only to trackers that
+registered for them. This replaces the current approach where
+`CaptureQuestState()` runs on every single event including noisy irrelevant
+ones.
+
+Each tracker exposes a registration function (e.g. `Core.RegisterTracker`)
+that declares its event list and callback. The main file builds an
+`event → { callback1, callback2, ... }` lookup at load time. When an event
+fires, only the registered callbacks run.
+
+The implementation for each tracker will be different — some are simple
+callbacks, some need delayed re-samples, some iterate indices. That's fine.
+The routing layer just dispatches; each tracker handles its own logic.
 
 ---
 
@@ -556,19 +594,18 @@ patterns and they vary per tracker.
 | `Loot.lua` | `GetNumLootItems`, `GetLootSlotInfo[slot]`, `GetLootSourceInfo[slot]`, `GetLootSlotLink[slot]`, `GetLootSlotType[slot]` | Event-driven with window lifecycle | `LOOT_READY` (sample all slots), `LOOT_CLOSED` (reset all to nil/0) |
 | `QuestLog.lua` | `QuestLog`, `IsQuestComplete[qid]`, `C_QuestLog.IsQuestFlaggedCompleted[qid]`, `C_QuestLog.GetQuestObjectives[qid]`, `GetQuestLogTitle[qid]`, `GetQuestTagInfo[qid]` | Event + delayed re-samples + index iteration | `QUEST_LOG_UPDATE`, `QUEST_ACCEPTED`, `QUEST_REMOVED`, `QUEST_TURNED_IN`, etc. |
 | `CompletedQuests.lua` | `GetQuestsCompleted` (functionsDelta) | Event + delayed re-samples | Quest-relevant events (same as QuestLog) |
-| `Reputation.lua` | TBD | TBD | TBD |
+| `Reputation.lua` | `FactionOrder`, `GetFactionInfoByID[factionID]` | Event-driven with index iteration | `CHAT_MSG_COMBAT_FACTION_CHANGE`, `UPDATE_FACTION`, `QUEST_TURNED_IN` |
 | `PlayerIdentity.lua` | `UnitRace["player"]`, `UnitClass["player"]`, `UnitSex["player"]` | Once at capture start | None (sampled at t=0 only) |
 
-### Open questions
+### Decisions
 
-- Should the delayed re-sample schedule (0, 0.10, 0.35, 0.55, 0.75, 1.00)
-  be per-tracker or shared? Current code uses one global schedule.
-- For quest index iteration: when `QUEST_LOG_UPDATE` fires, do we sample
-  ALL quests in the log, or try to detect which quest changed?
-  (Current code samples all — simple and safe, but more work per event.)
-- Position timer: 0.2s is the current interval. Is this the right balance
-  between data density and storage cost?
-- Reputation trigger design still needs discussion.
+- **Delayed re-sample schedule**: keep the current global schedule
+  (0, 0.10, 0.35, 0.55, 0.75, 1.00) as-is. Keep it simple.
+- **Quest sampling scope**: sample ALL quests in the log on every quest
+  event. Many different events can affect quest state, and detecting
+  which quest changed adds complexity for little gain.
+- **Position timer**: keep 0.2s. Current value works, optimize later if
+  needed.
 
 ### Player identity (static, one entry each)
 
@@ -576,3 +613,115 @@ patterns and they vary per tracker.
 parameterized function streams like everything else. They are sampled once
 at `t=0` and never change during a session — but they use the same format
 so there is no separate `player` metadata block or special case.
+
+---
+
+## 12) Reputation design
+
+### API landscape
+
+`GetFactionInfoByID(factionID)` returns 16 values — the same as
+`GetFactionInfo(factionIndex)` but keyed by stable ID instead of
+UI-dependent index. Both must be supported by the emulator.
+
+The 16 return values (all stored as-is, `n = 16`):
+
+| # | Name | Notes |
+|---|------|-------|
+| 1 | name | faction name |
+| 2 | description | detail pane text |
+| 3 | standingID | standing level (4=Neutral, 5=Friendly, etc.) |
+| 4 | barMin | changes when standing changes |
+| 5 | barMax | changes when standing changes |
+| 6 | barValue | the actual rep number |
+| 7 | atWarWith | player can toggle |
+| 8 | canToggleAtWar | capability flag |
+| 9 | isHeader | hierarchy flag |
+| 10 | isCollapsed | always false after expand-only collection |
+| 11 | hasRep | whether header has own rep bar |
+| 12 | isWatched | player can toggle |
+| 13 | isChild | second-level header or child |
+| 14 | factionID | also the table key |
+| 15 | hasBonusRepGain | Grand Commendation purchased |
+| 16 | canSetInactive | can be set inactive |
+
+### What we store
+
+Two function streams:
+
+**`GetFactionInfoByID[factionID]`** — parameterized by factionID. Each value
+is the full 16-value tuple exactly as the API returns it (`n = 16`). Nothing
+is omitted — `isCollapsed` and `factionID` are included for simplicity. The
+emulator just does `unpack(v, 1, v.n)` with no manipulation. Static fields
+repeat but are cheap (Lua interns strings in SavedVariables). Can be
+optimized later if storage becomes a concern.
+
+**`FactionOrder`** — parameterless. The value is an ordered array of
+factionIDs in their fully-expanded display order. This captures the index
+mapping so the emulator can serve `GetFactionInfo(index)` lookups.
+
+The emulator derives:
+- `GetFactionInfoByID(factionID)` → direct lookup, `unpack(v, 1, v.n)`
+- `GetFactionInfo(index)` → `factionID = FactionOrder[index]` →
+  return `GetFactionInfoByID(factionID)` data
+- `GetNumFactions()` → `#FactionOrder`
+
+### The expand problem
+
+`GetNumFactions()` returns visible rows, which depends on header
+expand/collapse state. To discover all factions, we must iterate
+`GetFactionInfo(index)` and call `ExpandFactionHeader(index)` on collapsed
+headers. This has two side effects:
+
+1. **Fires `UPDATE_FACTION`** — could trigger our own capture (recursion).
+2. **Mutates the player's UI** — expanded headers stay expanded.
+
+Policy (unchanged from WP-19): **expand-only, never re-collapse.** After
+our first collection pass, all headers are expanded.
+
+### Collection vs sampling
+
+The collection step (discovering faction IDs) is separated from the
+sampling step (reading current values):
+
+**CollectFactionIDs** (has side effects):
+- Iterates `GetFactionInfo(1..GetNumFactions())`
+- Expands collapsed headers to discover children
+- Returns ordered array of factionIDs
+- Updates `FactionOrder` if the set changed
+- Run at: capture start, `QUEST_TURNED_IN` (quest rewards can reveal new
+  factions)
+
+**SampleReputation** (pure reads):
+- For each known factionID, calls `GetFactionInfoByID(factionID)`
+- Compares against previous value (DeepCompare)
+- Appends `{t, tp, v}` only if changed
+- Run at: `CHAT_MSG_COMBAT_FACTION_CHANGE`, `UPDATE_FACTION`,
+  `QUEST_TURNED_IN`
+
+Guard against recursion: if `ExpandFactionHeader` fires `UPDATE_FACTION`
+during collection, the handler should check a `collecting` flag and skip
+re-entry.
+
+### No delayed re-samples
+
+Unlike quest functions where the server lags behind, reputation changes
+are atomic — `GetFactionInfoByID` returns the correct value immediately
+when the event fires. No staggered re-sampling needed.
+
+---
+
+## 13) Unsaved capture protection
+
+When a session has been stopped but not saved, the Start button should
+change to **Reset**. Pressing Reset discards the unsaved session and
+starts fresh. This eliminates silent data loss from stop → start without
+save (WP-16).
+
+UI states:
+
+| Capture state | Start button | Stop button | Save button |
+|---|---|---|---|
+| Idle (no session) | **Start** (enabled) | disabled | disabled |
+| Running | disabled | **Stop** (enabled) | disabled |
+| Stopped, unsaved | **Reset** (enabled) | disabled | **Save** (enabled) |
