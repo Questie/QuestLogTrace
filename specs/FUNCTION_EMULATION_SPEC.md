@@ -1,121 +1,136 @@
-# Function Emulation Spec
+# Function Emulation Spec (v8)
 
-This spec explains how another project can reconstruct function/API outputs at time `t`.
+How to reconstruct WoW API function outputs at a target time `t` from
+QuestLogTrace saved data.
 
-## 1) Time Model
+## 1) Generic lookup
 
-There are two timestamp styles:
+All function streams use the same algorithm:
 
-- Absolute `GetTime()` samples:
-  - `state.questHistory[*].t`
-  - `state.questLogHistory[*].t`
-  - `state.completedQuestsHistory[*].t`
-- Session-relative samples (seconds since `session.startedAt`):
-  - `state.eventRecords[*].t`
-  - `state.positionSamples[*].t`
-  - `state.levelEvents[*].t`
-  - `trace.events[*].t` (relative to first captured trace event, not session start)
+```lua
+-- Get the stream for a function
+function getStream(session, name, param)
+  local fn = session.functions[name]
+  if not fn then return nil end
+  if param ~= nil then
+    fn = fn[param]
+  end
+  return fn
+end
 
-Recommended canonical timeline:
-- Use session-relative seconds.
-- Convert absolute state timestamps as:
-  - `t_rel = snapshot.t - session.startedAt`
+-- Find value at target time
+function valueAt(stream, target_t)
+  local result = nil
+  for i = 1, #stream do
+    if stream[i].t > target_t then break end
+    result = stream[i].v
+  end
+  return result
+end
 
-## 2) Lookup Rule
+-- Return value to caller
+function emulate(v)
+  if type(v) == "table" and v.n then
+    return unpack(v, 1, v.n)  -- tuple
+  else
+    return v                    -- scalar or object
+  end
+end
+```
 
-For a value at target time `t_rel`:
-- Select the latest snapshot whose `snapshot_time <= t_rel`.
-- If none exists, value is `unknown` (or API default for your emulator).
+This covers every function in the catalog. No per-function logic needed.
 
-## 3) Function/Data Mapping
+## 2) Parameterless vs parameterized detection
 
-### Quest Log Membership
-- `GetAllQuestIdsInLog()`
-- Source: `state.questLogHistory[*].q`
+```lua
+local fn = session.functions[name]
+local firstKey = next(fn)
+if type(fn[firstKey]) == "table" and fn[firstKey].t then
+  -- flat stream (parameterless)
+else
+  -- keyed by argument (parameterized), index into fn[param]
+end
+```
 
-### Quest Completion Flags
-- `IsQuestComplete(questId)`
-- Source: latest `state.questHistory[questId][*].c`
+## 3) Function-to-stream mapping
 
-- `C_QuestLog.IsQuestFlaggedCompleted(questId)`
-- Source: latest `state.questHistory[questId][*].f`
+Every function maps directly to `session.functions[key]` or
+`session.functions[key][param]`. The key is the WoW API function name.
 
-### Quest Title Tuple
-- `GetQuestLogTitle(GetQuestLogIndexByID(questId))`
-- Source: latest `state.questHistory[questId][*].title`
+| WoW API call | Stream lookup |
+|---|---|
+| `GetZoneText()` | `functions["GetZoneText"]` |
+| `GetSubZoneText()` | `functions["GetSubZoneText"]` |
+| `GetRealZoneText()` | `functions["GetRealZoneText"]` |
+| `GetNumLootItems()` | `functions["GetNumLootItems"]` |
+| `UnitLevel("player")` | `functions["UnitLevel"]["player"]` |
+| `UnitRace("player")` | `functions["UnitRace"]["player"]` |
+| `UnitClass("player")` | `functions["UnitClass"]["player"]` |
+| `UnitSex("player")` | `functions["UnitSex"]["player"]` |
+| `C_Map.GetBestMapForUnit("player")` | `functions["C_Map.GetBestMapForUnit"]["player"]` |
+| `C_Map.GetPlayerMapPosition(map, "player")` | `functions["C_Map.GetPlayerMapPosition"]["player"]` |
+| `IsQuestComplete(questId)` | `functions["IsQuestComplete"][questId]` |
+| `C_QuestLog.IsQuestFlaggedCompleted(questId)` | `functions["C_QuestLog.IsQuestFlaggedCompleted"][questId]` |
+| `C_QuestLog.GetQuestObjectives(questId)` | `functions["C_QuestLog.GetQuestObjectives"][questId]` |
+| `GetQuestLogTitle(questId)` | `functions["GetQuestLogTitle"][questId]` |
+| `GetQuestTagInfo(questId)` | `functions["GetQuestTagInfo"][questId]` |
+| `GetLootSlotInfo(slot)` | `functions["GetLootSlotInfo"][slot]` |
+| `GetLootSourceInfo(slot)` | `functions["GetLootSourceInfo"][slot]` |
+| `GetLootSlotLink(slot)` | `functions["GetLootSlotLink"][slot]` |
+| `GetLootSlotType(slot)` | `functions["GetLootSlotType"][slot]` |
+| `GetFactionInfoByID(factionID)` | `functions["GetFactionInfoByID"][factionID]` |
 
-### Quest Objectives
-- `C_QuestLog.GetQuestObjectives(questId)`
-- Source: latest `state.questHistory[questId][*].objectives`
+### Derived functions
 
-### Quest Tag Info
-- `GetQuestTagInfo(questId)`
-- Source: latest `state.questHistory[questId][*].tag`
+These are not stored directly but reconstructed from other streams:
 
-### Completed Quest Lifetime Set
-- `GetQuestsCompleted([table])`
-- Source: apply deltas in `state.completedQuestsHistory` in order:
-  - add all ids in `a[]`
-  - remove all ids in `r[]`
-- Rebuild as associative map `{ [questId] = true }` at target time.
+| WoW API call | Derivation |
+|---|---|
+| `GetFactionInfo(index)` | `factionID = valueAt(functions["FactionOrder"], t)[index]` → then `functions["GetFactionInfoByID"][factionID]` |
+| `GetNumFactions()` | `#valueAt(functions["FactionOrder"], t)` |
+| `QuestLog` (quest IDs in log) | `valueAt(functions["QuestLog"], t)` — returns full array |
 
-### Player Level
-- `UnitLevel("player")`
-- Source: latest `state.levelEvents[*].l`
-- `state.levelEvents` includes a `CAPTURE_START` baseline entry.
+## 4) Delta stream replay
 
-### Player Map Position
-- `C_Map.GetBestMapForUnit("player")` -> latest `state.positionLookup[state.positionSamples[*].p].m`
-- `C_Map.GetPlayerMapPosition(map, "player"):GetXY()` -> latest `state.positionSamples[*].x`, `y`
+`GetQuestsCompleted` lives in `functionsDelta`:
 
-### Zone Text APIs
-- `GetZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].z`
-- `GetSubZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].sz`
-- `GetRealZoneText()` -> latest `state.positionLookup[state.positionSamples[*].p].rz`
+```lua
+function getCompletedQuests(session, target_t)
+  local data = session.functionsDelta["GetQuestsCompleted"]
+  local set = {}
+  for _, id in ipairs(data.initial) do
+    set[id] = true
+  end
+  for _, delta in ipairs(data.delta) do
+    if delta.t > target_t then break end
+    if delta.add then
+      for _, id in ipairs(delta.add) do set[id] = true end
+    end
+    if delta.remove then
+      for _, id in ipairs(delta.remove) do set[id] = nil end
+    end
+  end
+  return set
+end
+```
 
-### Loot APIs
-- `GetNumLootItems()`
-  - Source: latest `state.lootHistory[*].n` while loot is active.
-- `GetLootSlotInfo(lootSlot)`
-  - Source: latest `state.lootHistory[*].slots[*].l` where `slots[*].i == lootSlot`.
-- `GetLootSourceInfo(lootSlot)`
-  - Source: latest `state.lootHistory[*].slots[*].s` where `slots[*].i == lootSlot`.
-- `GetLootSlotLink(lootSlot)`
-  - Source: latest `state.lootHistory[*].slots[*].k` where `slots[*].i == lootSlot`.
-- `GetLootSlotType(lootSlot)`
-  - Source: latest `state.lootHistory[*].slots[*].t` where `slots[*].i == lootSlot`.
-- Loot snapshots are captured on `LOOT_READY`.
+## 5) Event replay
 
-### Reputation APIs
-- `GetFactionInfoByID(factionID)`
-  - Static fields: `state.reputationMeta[factionID]`
-  - Dynamic fields: replay `state.reputationHistory[factionID]` deltas in time order.
-- `GetFactionInfo(factionIndex)`
-  - The addon stores by `factionID` intentionally; reconstructing index-order rows requires an emulator-side view model.
-- Baseline is captured at `CAPTURE_START`; subsequent deltas are captured on `CHAT_MSG_COMBAT_FACTION_CHANGE`.
+Iterate `session.events` in order. Each entry has `t`, `tp`, `e`, `a`.
 
-### Player Static Identity
-- `UnitRace("player")`, `UnitClass("player")`, `UnitSex("player")`
-- Source: `session.player` (fallback `QuestLogTraceCharacter.player`)
+```lua
+for _, event in ipairs(session.events) do
+  if event.t >= t0 and event.t <= t1 then
+    fireEvent(event.e, unpack(event.a, 1, event.a.n))
+  end
+end
+```
 
-### Event Feed (raw)
-- `trace.events` + `trace.eventDict`
-- `state.eventRecords`
-- Use these for event-order replay and correlation with state transitions.
+## 6) Known limits
 
-## 4) Replay Construction Strategy
-
-1. Load one `SessionRecord`.
-2. Build normalized streams:
-   - convert absolute state times to `t_rel`.
-3. Sort each stream by time.
-4. For query APIs, answer from latest snapshot <= `t_rel`.
-5. For event replay, iterate `trace.events` by index order and/or `t`.
-6. For completed-quest emulation, replay `completedQuestsHistory` deltas up to `t_rel`.
-7. Apply quest/position streams as authoritative state snapshots.
-
-## 5) Known Limits
-
-- Trace event time (`trace.events[*].t`) is anchored to first trace event, not exact session start.
-- Not all WoW APIs are captured; only mapped APIs above can be emulated directly.
-- `GetQuestsCompleted` can include daily/account-wide behaviors from game rules.
+- Only the functions listed above can be emulated. Other WoW APIs are
+  not captured.
+- `nil` values in function streams mean the function returned nil at
+  that time (e.g. loot window closed). The emulator should return nil,
+  not treat it as "no data".
+- Position XY is rounded to 4 decimal places.

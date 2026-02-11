@@ -2,18 +2,8 @@
 
 This folder defines how to read QuestLogTrace saved data and reconstruct function outputs over time.
 
-Use these files together:
+- `SCHEMA_SPEC.md` — SavedVariables layout, session structure, entry formats.
+- `FUNCTION_EMULATION_SPEC.md` — How to emulate WoW API function calls from stored data.
+- `EVENT_CATALOG.md` — All game events tracked by the addon and which trackers use them.
 
-- `specs/SCHEMA_SPEC.md`
-  - Exact table layout for `QuestLogTrace` and `QuestLogTraceCharacter`.
-  - Field-level meaning for each capture stream.
-- `specs/FUNCTION_EMULATION_SPEC.md`
-  - How to rebuild API/function values at a target timestamp.
-  - Time normalization and lookup rules.
-- `specs/EVENT_CATALOG.md`
-  - Event categories and event names currently tracked by the addon.
-
-Versioning:
-
-- Current data schema version: `6`
-- Saved in `QuestLogTrace.schemaVersion`
+Schema version: `8`

@@ -1,216 +1,237 @@
-# Schema Spec (v6)
+# Schema Spec (v8)
 
-This document specifies the SavedVariables layout produced by QuestLogTrace.
+## 1) SavedVariables
 
-## 1) SavedVariables Tables
+### `QuestLogTrace` (account-level)
 
-### `QuestLogTrace` (global/account-level)
-- `schemaVersion: number`
-- `settings: table`
-  - `maxSessions: number`
-
-Notes:
-- No session payload is stored here.
-- UI position is not persisted.
+```lua
+QuestLogTrace = {
+  schemaVersion = 8,
+  settings = {
+    maxSessions = 20,
+  },
+}
+```
 
 ### `QuestLogTraceCharacter` (per-character)
-- `sessions: SessionRecord[]`
-- `player: PlayerStaticInfo?`
-- `lastSavedSession: string?`
-- `lastSessionSummary: SessionSummary?`
+
+```lua
+QuestLogTraceCharacter = {
+  lastSavedSession = "2026-02-10_12-34-56",
+  sessions = { SessionRecord, ... },
+}
+```
 
 ---
 
 ## 2) SessionRecord
 
-Each `/qlt save` appends one `SessionRecord` to `QuestLogTraceCharacter.sessions`.
+Each `/qlt save` appends one record to `QuestLogTraceCharacter.sessions`.
 
-### SessionRecord fields
-- `schemaVersion: number`
-- `name: string`
-- `startedAt: number`
-- `stoppedAt: number`
-- `duration: number`
-- `trace: TraceStream`
-- `state: StateStreams`
-- `player: PlayerStaticInfo?`
-- `summary: SessionSummary`
+```lua
+SessionRecord = {
+  schemaVersion = 8,
+  name = "2026-02-10_12-34-56",
 
-`startedAt`/`stoppedAt` are from `GetTime()`.
+  startedAt        = 100000.000,     -- GetTime() at capture start
+  startedAtPrecise = 4821.31204,     -- GetTimePreciseSec() at capture start
+  stoppedAt        = 100333.150,     -- GetTime() at capture stop
+  stoppedAtPrecise = 5154.46238,     -- GetTimePreciseSec() at capture stop
+  duration         = 333.150,        -- stoppedAt - startedAt
+  durationPrecise  = 333.15034,      -- stoppedAtPrecise - startedAtPrecise
 
----
+  events         = EventEntry[],
+  functions      = table<string, FunctionStream>,
+  functionsDelta = table<string, DeltaStream>,
+}
+```
 
-## 3) TraceStream
-
-- `eventDict: string[]`
-  - 1-based dictionary of event names.
-- `events: CompactTraceEvent[]`
-- `startLogIndex: number`
-- `endLogIndex: number`
-
-### CompactTraceEvent
-- `i: number`
-  - QLTrace row id (or fallback index).
-- `e: number`
-  - Event name id into `trace.eventDict`.
-- `t: number`
-  - Relative time from first captured trace event in this session (`0` for first row).
-- `f: number`
-  - Frame counter from QLTrace row.
-- `a: PackedArgs`
-  - Event args packed with `n` for nil-safe round-trip.
+No `summary` block — consumers derive counts from the data.
+No `player` block — player identity is stored as function streams
+(`UnitRace`, `UnitClass`, `UnitSex`).
 
 ---
 
-## 4) StateStreams
+## 3) Time model
 
-- `questHistory: table<questId, QuestSnapshot[]>`
-- `questLogHistory: QuestLogSnapshot[]`
-- `completedQuestsHistory: CompletedQuestsSnapshot[]`
-- `eventRecords: EventRecord[]`
-- `positionSamples: PositionSample[]`
-- `positionLookup: PositionLookup`
-- `levelEvents: LevelEvent[]`
-- `lootHistory: LootSnapshot[]`
-- `reputationHistory: table<factionID, ReputationDeltaSnapshot[]>`
-- `reputationMeta: table<factionID, ReputationMeta>`
+All timestamps in entries are **session-relative** (seconds since capture
+start). Two clocks are stored on every entry:
 
-### QuestSnapshot
-- `t: number` (`GetTime()` when captured)
-- `c: boolean` (`IsQuestComplete(questId)`)
-- `f: boolean` (`C_QuestLog.IsQuestFlaggedCompleted(questId)`)
-- `title: table` (raw tuple from `GetQuestLogTitle(GetQuestLogIndexByID(questId))`)
-- `objectives: table` (raw return from `C_QuestLog.GetQuestObjectives(questId)`)
-- `tag: table` (raw tuple from `GetQuestTagInfo(questId)`)
+- `t` — from `GetTime()`. Cached once per frame. All samples in the same
+  frame share the same `t`.
+- `tp` — from `GetTimePreciseSec()`. Monotonic, millisecond precision,
+  unique per call.
 
-### QuestLogSnapshot
-- `t: number` (`GetTime()` when captured)
-- `q: number[]` (quest IDs currently in log)
+Conversion from absolute to relative at capture time:
 
-### CompletedQuestsSnapshot
-- `t: number` (`GetTime()` when captured)
-- `a: number[]` (quest IDs added since previous snapshot)
-- `r: number[]` (quest IDs removed since previous snapshot)
-- `c: number` (resulting completed-quest count after applying delta)
+```lua
+t  = GetTime()          - session.startedAt
+tp = GetTimePreciseSec() - session.startedAtPrecise
+```
 
-### EventRecord
-- `e: string` (event name)
-- `t: number` (seconds since `session.startedAt`)
-- `a: PackedArgs`
-
-### PositionSample
-- `t: number` (seconds since `session.startedAt`)
-- `p: number` (index into `positionLookup`)
-- `x: number?` (map X from `GetPlayerMapPosition`)
-- `y: number?` (map Y from `GetPlayerMapPosition`)
-
-### PositionLookup
-- `PositionContext[]` (1-based lookup table)
-
-### PositionContext
-- `m: number?` (map ID from `C_Map.GetBestMapForUnit("player")`)
-- `z: string?` (zone name from `GetZoneText()`)
-- `sz: string?` (subzone name from `GetSubZoneText()`)
-- `rz: string?` (real zone name from `GetRealZoneText()`)
-
-### LevelEvent
-- `t: number` (seconds since `session.startedAt`)
-- `e: string` (`CAPTURE_START` baseline or `PLAYER_LEVEL_UP`)
-- `l: number` (`UnitLevel("player")`)
-- `a: PackedArgs` (raw event payload)
-
-### LootSnapshot
-- `t: number` (`GetTime()` when captured)
-- `e: string` (trigger event, currently `LOOT_READY`)
-- `n: number` (`GetNumLootItems()` at capture time)
-- `slots: LootSlotSnapshot[]`
-
-### LootSlotSnapshot
-- `i: number` (loot slot index)
-- `l: PackedArgs` (raw return tuple of `GetLootSlotInfo(i)`)
-- `s: PackedArgs` (raw return tuple of `GetLootSourceInfo(i)`)
-- `k: string?` (return value of `GetLootSlotLink(i)`)
-- `t: number?` (return value of `GetLootSlotType(i)`)
-
-### ReputationDeltaSnapshot
-- `t: number` (`GetTime()` when captured)
-- `e: string` (`CAPTURE_START` baseline or `CHAT_MSG_COMBAT_FACTION_CHANGE`)
-- `s: number?` (`standingID` if changed)
-- `mn: number?` (`barMin` if changed)
-- `mx: number?` (`barMax` if changed)
-- `v: number?` (`barValue` if changed)
-- `w: boolean?` (`atWarWith` if changed)
-- `iw: boolean?` (`isWatched` if changed)
-
-### ReputationMeta
-- `n: string?` (faction name)
-- `d: string?` (faction description)
-- `ctw: boolean?` (`canToggleAtWar`)
-- `h: boolean?` (`isHeader`)
-- `hr: boolean?` (`hasRep`)
-- `ch: boolean?` (`isChild`)
-- `br: boolean?` (`hasBonusRepGain`)
-- `csi: boolean?` (`canSetInactive`)
+The session envelope stores absolute baselines so consumers can convert
+back if needed.
 
 ---
 
-## 5) PlayerStaticInfo
+## 4) Events
 
-- `race: string`
-- `raceLocalized: string`
-- `raceID: number`
-- `class: string`
-- `classLocalized: string`
-- `classID: number`
-- `sex: number` (`UnitSex`)
+```lua
+{ t = 0.000, tp = 0.00012, e = "QUEST_ACCEPTED", a = { 101, 56789, n = 2 } }
+```
 
-Captured from:
-- `UnitRace("player")`
-- `UnitClass("player")`
-- `UnitSex("player")`
+- `t`: session-relative `GetTime()`
+- `tp`: session-relative `GetTimePreciseSec()`
+- `e`: event name string
+- `a`: packed args (see section 7)
 
 ---
 
-## 6) SessionSummary
+## 5) Function streams
 
-- `eventCount: number`
-- `questCount: number`
-- `trackedEventCount: number`
-- `questLogSnapshots: number`
-- `completedQuestSnapshots: number`
-- `lootSnapshotCount: number`
-- `reputationFactionCount: number`
-- `reputationSnapshotCount: number`
-- `completedQuestCount: number`
-- `positionSampleCount: number`
-- `levelEventCount: number`
+All tracked WoW API return values are stored in `functions`. Two formats
+exist, distinguished by the parser automatically.
+
+### Parameterless — flat array
+
+```lua
+["GetZoneText"] = {
+  { t = 0.000, tp = 0.00015, v = "Dun Morogh" },
+  { t = 90.000, tp = 90.00022, v = "Stormwind City" },
+}
+```
+
+### Parameterized — keyed by argument
+
+```lua
+["UnitLevel"] = {
+  ["player"] = {
+    { t = 0.000, tp = 0.00020, v = 12 },
+    { t = 5.213, tp = 5.21350, v = 13 },
+  },
+}
+```
+
+### Parser detection
+
+If the first entry in the table has a `t` field, it is a flat
+(parameterless) stream. Otherwise, the keys are argument values and each
+value is a `{t, tp, v}` array.
+
+### Change-only
+
+Entries are appended only when the value changes. The first entry is
+always the full value at `t=0` (capture start). The latest entry before
+a target time is the current value at that time.
+
+### `nil` is a valid value
+
+When a function returns `nil`, that is stored as a change. This is how
+transient-window APIs (e.g. loot functions between `LOOT_READY` and
+`LOOT_CLOSED`) return to their inactive state.
 
 ---
 
-## 7) PackedArgs Encoding
+## 6) Delta streams
 
-`PackedArgs` is a Lua table with:
-- integer keys `1..n` for positional args
-- `n: number` total argument count
+For functions that return large sets (e.g. `GetQuestsCompleted` —
+thousands of quest IDs). Stored in `functionsDelta`.
 
-This preserves explicit `nil` gaps in argument lists.
+```lua
+["GetQuestsCompleted"] = {
+  t = 0,
+  tp = 0,
+  initial = { 123, 456, 789 },
+  delta = {
+    { t = 50.000, tp = 50.00012, add = { 56789 } },
+    { t = 120.000, tp = 120.00034, add = { 67890, 11111 } },
+  },
+}
+```
+
+- `initial`: full set at capture start.
+- `delta`: ordered entries with `add` and/or `remove` arrays.
+- Empty `add`/`remove` arrays are omitted during serialization.
 
 ---
 
-## 8) Change-Only Streams
+## 7) Packed args encoding
 
-These streams append snapshots only when value changes:
-- `state.questHistory`
-- `state.questLogHistory`
-- `state.completedQuestsHistory`
+Used in event args and tuple-returning function values.
 
-These streams append independently:
-- `state.positionSamples`
-- `state.eventRecords`
-- `state.levelEvents`
-- `state.lootHistory`
-- `state.reputationHistory` (event-triggered, delta by `factionID`)
+```lua
+{ value1, value2, ..., n = argCount }
+```
 
-Notes:
-- `state.positionSamples` is change-only for map/position/zone state.
-- `state.eventRecords` is the tracked event stream and is not position-linked.
+`n` preserves the argument count even when `nil` appears in the middle.
+
+---
+
+## 8) Return value format
+
+The stored `v` in a function entry is self-describing:
+
+| `v` shape | Meaning | Emulator action |
+|---|---|---|
+| `type(v) == "table" and v.n` | Packed tuple | `return unpack(v, 1, v.n)` |
+| `type(v) == "table"` (no `n`) | Object/table | `return v` |
+| scalar (number, string, boolean, nil) | Single value | `return v` |
+
+All tuple-returning functions MUST have `n` on every stored value.
+
+---
+
+## 9) Complete function catalog
+
+### Parameterless
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `GetZoneText` | scalar (string) | |
+| `GetSubZoneText` | scalar (string) | |
+| `GetRealZoneText` | scalar (string) | |
+| `GetNumLootItems` | scalar (number) | 0 when no loot window |
+| `QuestLog` | object (number[]) | Full array of quest IDs in log |
+| `FactionOrder` | object (number[]) | Ordered factionIDs for index lookup |
+
+### Parameterized by `"player"`
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `UnitLevel` | scalar (number) | |
+| `UnitRace` | tuple (n=3) | localizedName, englishName, raceID |
+| `UnitClass` | tuple (n=3) | localizedName, englishName, classID |
+| `UnitSex` | scalar (number) | |
+| `C_Map.GetBestMapForUnit` | scalar (number) | map ID |
+| `C_Map.GetPlayerMapPosition` | object ({x, y}) | rounded to 4 decimals |
+
+### Parameterized by questId
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `IsQuestComplete` | scalar (boolean) | |
+| `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean) | |
+| `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]) | |
+| `GetQuestLogTitle` | tuple (n=8) | |
+| `GetQuestTagInfo` | tuple (n varies) | |
+
+### Parameterized by slot index
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `GetLootSlotInfo` | tuple (n=9) | nil when loot window closed |
+| `GetLootSourceInfo` | tuple (n=2) | nil when loot window closed |
+| `GetLootSlotLink` | scalar (string) | nil when loot window closed |
+| `GetLootSlotType` | scalar (number) | nil when loot window closed |
+
+### Parameterized by factionID
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `GetFactionInfoByID` | tuple (n=16) | Full 16-value API return |
+
+### Delta streams (in `functionsDelta`)
+
+| Function key | Notes |
+|---|---|
+| `GetQuestsCompleted` | Only grows (remove absent in practice) |
