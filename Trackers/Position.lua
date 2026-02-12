@@ -86,8 +86,10 @@ end
 --- Schedule a repeating timer to sample position data.
 ---@param capture CaptureState
 local function ScheduleTimer(capture)
+  ---@type number
+  local token = capture.token
   C_After(TIMER_INTERVAL, function()
-    if not capture.active then return end
+    if not capture.active or capture.token ~= token then return end
     SampleAll(capture)
     ScheduleTimer(capture)
   end)
@@ -132,10 +134,12 @@ Core.RegisterTracker({
     ScheduleTimer(capture)
   end,
 
+  OnEvent = function(capture, _event, ...)
+    SampleAll(capture)
+  end,
+
   ---@param capture CaptureState
-  ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnCaptureStopped = function(capture)
     SampleAll(capture)
   end,
 })
