@@ -216,9 +216,7 @@ Core.RegisterTracker({
   end,
 
   ---@param capture CaptureState
-  ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnEvent = function(capture)
     -- Immediate sample in this callstack (the 0-delay entry)
     SampleQuestLog(capture)
 

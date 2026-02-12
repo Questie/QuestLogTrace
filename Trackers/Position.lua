@@ -134,7 +134,8 @@ Core.RegisterTracker({
     ScheduleTimer(capture)
   end,
 
-  OnEvent = function(capture, _event, ...)
+  ---@param capture CaptureState
+  OnEvent = function(capture)
     SampleAll(capture)
   end,
 
