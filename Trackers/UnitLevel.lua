@@ -23,6 +23,7 @@ Core.RegisterTracker({
   ---@param event string
   ---@param ... any
   OnEvent = function(capture, event, ...)
+    if not stream then return end
     ---@type number
     local level = UnitLevel("player")
     ---@type FunctionStreamEntry?

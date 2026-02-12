@@ -29,9 +29,9 @@ local function CollectFactionIDs()
   local index = 1
 
   while index <= numFactions do
-    local name, description, standingID, barMin, barMax, barValue,
-      atWarWith, canToggleAtWar, isHeader, isCollapsed, hasRep,
-      isWatched, isChild, factionID, hasBonusRepGain, canSetInactive =
+    local _, _, _, _, _, _,
+      _, _, isHeader, isCollapsed, _,
+      _, _, factionID =
       GetFactionInfo(index)
 
     if factionID then

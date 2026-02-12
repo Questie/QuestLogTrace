@@ -3,7 +3,14 @@ QuestLogTraceCore = QuestLogTraceCore or {}
 ---@class QuestLogTraceCore
 local Core = QuestLogTraceCore
 
----@type Frame?
+---@class ControlFrame : Frame
+---@field startButton Button
+---@field stopButton Button
+---@field saveButton Button
+---@field status FontString
+---@field elapsed number
+
+---@type ControlFrame?
 local controlFrame = nil
 
 --- Update the control frame's status text and button states.
@@ -64,8 +71,7 @@ end
 function Core.BuildControlFrame()
   if controlFrame then return end
 
-  ---@type Frame
-  local frame = CreateFrame("Frame", "QuestLogTraceControlFrame", UIParent)
+  local frame = CreateFrame("Frame", "QuestLogTraceControlFrame", UIParent) --[[@as ControlFrame]]
   frame:SetSize(250, 100)
   frame:SetPoint("TOP", UIParent, "TOP", 0, -120)
   frame:SetClampedToScreen(true)
@@ -75,30 +81,25 @@ function Core.BuildControlFrame()
   frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
   frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
 
-  ---@type Texture
   local bg = frame:CreateTexture(nil, "BACKGROUND")
-  bg:SetAllPoints(true)
+  bg:SetAllPoints()
   bg:SetColorTexture(0.05, 0.05, 0.05, 0.85)
 
-  ---@type Texture
   local border = frame:CreateTexture(nil, "BORDER")
-  border:SetAllPoints(true)
+  border:SetAllPoints()
   border:SetColorTexture(0.20, 0.20, 0.20, 0.9)
   border:SetDrawLayer("BORDER", 1)
 
-  ---@type Texture
   local inner = frame:CreateTexture(nil, "ARTWORK")
   inner:SetPoint("TOPLEFT", 1, -1)
   inner:SetPoint("BOTTOMRIGHT", -1, 1)
   inner:SetColorTexture(0.08, 0.08, 0.08, 0.9)
 
-  ---@type FontString
   local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOP", 0, -8)
   title:SetText("QuestLogTrace")
 
-  ---@type Button
-  local startButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  local startButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
   startButton:SetSize(72, 22)
   startButton:SetPoint("TOPLEFT", 10, -26)
   startButton:SetText("Start")
@@ -106,15 +107,13 @@ function Core.BuildControlFrame()
     ---@type "running"|"stopped_unsaved"|"idle"
     local captureState = Core.GetCaptureState and Core.GetCaptureState() or "idle"
     if captureState == "stopped_unsaved" then
-      -- Reset: discard unsaved session, then start fresh
       if Core.ResetCapture then Core.ResetCapture() end
     else
       if Core.StartCapture then Core.StartCapture() end
     end
   end)
 
-  ---@type Button
-  local stopButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  local stopButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
   stopButton:SetSize(72, 22)
   stopButton:SetPoint("LEFT", startButton, "RIGHT", 8, 0)
   stopButton:SetText("Stop")
@@ -122,8 +121,7 @@ function Core.BuildControlFrame()
     if Core.StopCapture then Core.StopCapture() end
   end)
 
-  ---@type Button
-  local saveButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate")
+  local saveButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
   saveButton:SetSize(72, 22)
   saveButton:SetPoint("LEFT", stopButton, "RIGHT", 8, 0)
   saveButton:SetText("Save")
@@ -131,7 +129,6 @@ function Core.BuildControlFrame()
     if Core.SaveCapture then Core.SaveCapture() end
   end)
 
-  ---@type FontString
   local status = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   status:SetPoint("TOPLEFT", 10, -54)
   status:SetJustifyH("LEFT")
@@ -144,10 +141,10 @@ function Core.BuildControlFrame()
   frame.status = status
 
   frame.elapsed = 0
-  ---@param self Frame
-  ---@param elapsed number
-  frame:SetScript("OnUpdate", function(self, elapsed)
-    self.elapsed = self.elapsed + elapsed
+  ---@param self ControlFrame
+  ---@param dt number
+  frame:SetScript("OnUpdate", function(self, dt)
+    self.elapsed = self.elapsed + dt
     if self.elapsed >= 0.5 then
       self.elapsed = 0
       Core.UpdateControlFrameStatus()
