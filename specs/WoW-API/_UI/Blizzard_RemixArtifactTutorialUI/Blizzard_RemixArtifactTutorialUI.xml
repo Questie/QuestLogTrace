@@ -1,0 +1,12 @@
+<!-- Original Path: .\WoWUI\Interface\AddOns\Blizzard_RemixArtifactTutorialUI\Blizzard_RemixArtifactTutorialUI.xml -->
+<!-- Auto-moved, do not edit manually -->
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+https://raw.githubusercontent.com/BigWigsMods/WoWUI/refs/heads/vanilla/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
+	
+	<Frame name="RemixArtifactTutorialControllerFrame" mixin="RemixArtifactTutorialControllerMixin" inherits="CallbackRegistrantTemplate" parent="UIParent">
+		<Scripts>
+			<OnLoad method="OnLoad"/>
+			<OnEvent method="OnEvent"/>
+		</Scripts>
+	</Frame>
+</Ui>

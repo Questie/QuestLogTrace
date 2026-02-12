@@ -1,0 +1,42 @@
+-- Original Path: .\WoWUI\Interface\AddOns\Blizzard_SharedMapDataProviders\GossipDataProvider.lua
+-- Auto-generated LuaLS Annotations, do not edit manually
+---@meta _
+
+---@class GossipDataProviderMixin : MapCanvasDataProviderMixin
+GossipDataProviderMixin = CreateFromMixins(MapCanvasDataProviderMixin);
+
+function GossipDataProviderMixin:OnShow()
+	self:RegisterEvent("DYNAMIC_GOSSIP_POI_UPDATED");
+end
+
+function GossipDataProviderMixin:OnHide()
+	self:UnregisterEvent("DYNAMIC_GOSSIP_POI_UPDATED");
+end
+
+function GossipDataProviderMixin:OnEvent(event, ...)
+	if event == "DYNAMIC_GOSSIP_POI_UPDATED" then
+		self:RefreshAllData();
+	end
+end
+
+function GossipDataProviderMixin:RemoveAllData()
+	self:GetMap():RemoveAllPinsByTemplate("GossipPinTemplate");
+end
+
+function GossipDataProviderMixin:RefreshAllData(fromOnShow)
+	self:RemoveAllData();
+
+	local mapID = self:GetMap():GetMapID();
+	local gossipPoiID = C_GossipInfo.GetPoiForUiMapID(mapID);
+
+	if gossipPoiID then
+		local gossipInfo = C_GossipInfo.GetPoiInfo(mapID, gossipPoiID);
+		if gossipInfo then
+			self:GetMap():AcquirePin("GossipPinTemplate", gossipInfo);
+		end
+	end
+end
+
+--[[ Pin ]]--
+---@class GossipPinMixin : BaseMapPoiPinMixin
+GossipPinMixin = BaseMapPoiPinMixin:CreateSubPin("PIN_FRAME_LEVEL_GOSSIP");

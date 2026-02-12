@@ -1,0 +1,13 @@
+<!-- Original Path: .\WoWUI\Interface\AddOns\Blizzard_WowSurveyUI\Blizzard_WowSurveyUI.xml -->
+<!-- Auto-moved, do not edit manually -->
+<Ui xmlns="http://www.blizzard.com/wow/ui/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.blizzard.com/wow/ui/
+https://raw.githubusercontent.com/BigWigsMods/WoWUI/refs/heads/vanilla/Interface/AddOns/Blizzard_SharedXML/UI.xsd">
+
+	<Button name="WowSurveyStatusFrame" inherits="StatusUIFrame" mixin="WowSurveyStatusMixin">
+		<Scripts>
+			<OnLoad method="OnLoad"/>
+			<OnClick method="OnClick"/>
+			<OnEvent method="OnEvent"/>
+		</Scripts>
+	</Button>
+</Ui>

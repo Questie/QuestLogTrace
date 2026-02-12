@@ -1,0 +1,10 @@
+-- Original Path: .\WoWUI\Interface\AddOns\Blizzard_Commentator\Blizzard_CommentatorConstants.lua
+-- Auto-generated LuaLS Annotations, do not edit manually
+---@meta _
+
+-- Limits can be overwritten in another addon.
+COMMENTATOR_MAX_OFFENSIVE_SPELLS = COMMENTATOR_MAX_OFFENSIVE_SPELLS or 5;
+COMMENTATOR_MAX_DEFENSIVE_SPELLS = COMMENTATOR_MAX_DEFENSIVE_SPELLS or 5;
+COMMENTATOR_MAX_DEBUFF_SPELLS = COMMENTATOR_MAX_DEBUFF_SPELLS or 2;
+
+COMMENTATOR_INVERSE_SCALE = 768/1080;
