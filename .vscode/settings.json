@@ -1,25 +1,14 @@
 {
   "files.exclude": {
-    "**/WoW-API": true
+    "**/WoW-API/COMMIT_HASHES.md": false,
+    "**/WoW-API/*": true
   },
   "search.exclude": {
-    "**/WoW-API": true,
-    "**/Events/hide": true
+    // "**/WoW-API": true,
+    // "**/Events/hide": true
   },
-  "Lua.workspace.ignoreDir": [".vscode", "MapTest/BlizzardAPI"],
-  "Lua.workspace.library": ["WoW-API"],
-  "Lua.diagnostics.ignoredFiles": "Disable",
-  "Lua.runtime.version": "Lua 5.1",
-  "editor.formatOnSave": true,
-  "Lua.runtime.builtin": {
-    "basic": "enable",
-    "debug": "enable",
-    "io": "enable",
-    "math": "enable",
-    "os": "enable",
-    "package": "enable",
-    "string": "enable",
-    "table": "enable",
-    "utf8": "enable"
-  }
+  "[markdown]": {
+    "editor.formatOnSave": false
+  },
+  "editor.formatOnSave": true
 }
