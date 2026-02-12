@@ -2,16 +2,21 @@
 ## Title: QuestLogTrace
 ## Author: Logon
 ## Notes: Event Trace + Function Trace
-## Version: 1
+## Version: 2
 ## RequiredDeps:
-## OptionalDeps: 
+## OptionalDeps:
 ## SavedVariables: QuestLogTrace
 ## SavedVariablesPerCharacter: QuestLogTraceCharacter
 
 globals.lua
 
-Trace/QLTrace.xml
+Trackers/PlayerIdentity.lua
+Trackers/UnitLevel.lua
+Trackers/Position.lua
+Trackers/Loot.lua
+Trackers/Reputation.lua
+Trackers/QuestLog.lua
+Trackers/CompletedQuests.lua
 
-QuestLogTrace_StateTracking.lua
 QuestLogTrace_UI.lua
 QuestLogTrace.lua

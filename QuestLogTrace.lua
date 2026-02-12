@@ -2,21 +2,35 @@
 QuestLog = select(2, ...)
 
 QuestLogTraceCore = QuestLogTraceCore or {}
+
+---@class QuestLogTraceCore
 local Core = QuestLogTraceCore
 
+---@type string
 local ADDON_NAME = "QuestLogTrace"
-local SCHEMA_VERSION = 7
+---@type number
+local SCHEMA_VERSION = 8
+---@type number
 local DEFAULT_MAX_SESSIONS = 20
-local SAMPLE_DELAYS = { 0, 0.10, 0.35, 0.55, 0.75, 1.00 }
-local POSITION_SAMPLE_INTERVAL = 0.20
-local POSITION_DECIMALS = 4
 
+---------------------------------------------------------------------------
+-- Capture state
+---------------------------------------------------------------------------
+
+---@type CaptureState
 local capture = {
   active = false,
   token = 0,
-  current = nil,
+  startedAt = nil,        -- GetTime() baseline
+  startedAtPrecise = nil, -- GetTimePreciseSec() baseline
+  session = nil,          -- the session record being built
 }
 
+---------------------------------------------------------------------------
+-- All events the addon registers for (union of all tracker events + extras)
+---------------------------------------------------------------------------
+
+---@type EventCategory[]
 local TRACKED_EVENT_CATEGORIES = {
   {
     name = "quest_state",
@@ -108,6 +122,7 @@ local TRACKED_EVENT_CATEGORIES = {
       "TRACKED_ACHIEVEMENT_LIST_CHANGED",
       "TRACKED_ACHIEVEMENT_UPDATE",
       "CRITERIA_UPDATE",
+      "UPDATE_FACTION",
     },
   },
   {
@@ -122,8 +137,11 @@ local TRACKED_EVENT_CATEGORIES = {
   },
 }
 
+-- Build flat deduplicated event list
+---@type string[]
 local TRACKED_EVENTS = {}
 do
+  ---@type table<string, boolean>
   local seen = {}
   for _, category in ipairs(TRACKED_EVENT_CATEGORIES) do
     for _, event in ipairs(category.events) do
@@ -136,126 +154,34 @@ do
 end
 Core.TRACKED_EVENT_CATEGORIES = TRACKED_EVENT_CATEGORIES
 
-local POSITION_SAMPLING_EVENTS = {
-  PLAYER_ENTERING_WORLD = true,
-  PLAYER_ALIVE = true,
-  PLAYER_STARTED_MOVING = true,
-  PLAYER_STOPPED_MOVING = true,
-  ZONE_CHANGED = true,
-  ZONE_CHANGED_NEW_AREA = true,
-  ZONE_CHANGED_INDOORS = true,
-  MAP_EXPLORATION_UPDATED = true,
-  PLAYER_MAP_CHANGED = true,
-  AREA_POIS_UPDATED = true,
-  NEW_WMO_CHUNK = true,
-}
+---------------------------------------------------------------------------
+-- Helpers
+---------------------------------------------------------------------------
 
-local playerStaticInfo = nil
-local playerInfoRetryScheduled = false
-
+--- Trim whitespace from both ends of a string.
+---@param s any The value to trim (returns empty string for non-strings)
+---@return string trimmed
 local function Trim(s)
-  if type(s) ~= "string" then
-    return ""
-  end
+  if type(s) ~= "string" then return "" end
   return (s:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
-local function CountTableKeys(t)
-  local count = 0
-  for _ in pairs(t) do
-    count = count + 1
-  end
-  return count
+--- Create a session name from an override or generate one from the current date.
+---@param override any The optional name override
+---@return string name
+local function CreateSessionName(override)
+  local candidate = Trim(override)
+  if candidate ~= "" then return candidate end
+  return date("%Y-%m-%d_%H-%M-%S")
 end
 
-local function ShallowCopyTable(input)
-  if type(input) ~= "table" then
-    return nil
-  end
+---------------------------------------------------------------------------
+-- SavedVariables
+---------------------------------------------------------------------------
 
-  local out = {}
-  for k, v in pairs(input) do
-    out[k] = v
-  end
-  return out
-end
-
-local function safePack(...)
-  local tbl = { ... }
-  tbl.n = select("#", ...)
-  return tbl
-end
-
-local function CopyPackedArgs(args)
-  if type(args) ~= "table" then
-    return { n = 0 }
-  end
-
-  local out = {}
-  local n = args.n or #args
-  for i = 1, n do
-    out[i] = args[i]
-  end
-  out.n = n
-  return out
-end
-
-local function round(num, numDecimalPlaces)
-  if type(num) ~= "number" then
-    return num
-  end
-  local mult = 10 ^ (numDecimalPlaces or 0)
-  return math.floor(num * mult + 0.5) / mult
-end
-
-local function SerializePositionSamples(samples)
-  local positionLookup = {}
-  local indexByKey = {}
-  local out = {}
-
-  local function EncodePositionKey(m, z, sz, rz)
-    local function part(v)
-      if v == nil then
-        return "<nil>"
-      end
-      return tostring(v)
-    end
-
-    return table.concat({
-      part(m),
-      part(z),
-      part(sz),
-      part(rz),
-    }, "\31")
-  end
-
-  for i = 1, #samples do
-    local sample = samples[i]
-    local key = EncodePositionKey(sample.m, sample.z, sample.sz, sample.rz)
-    local pIndex = indexByKey[key]
-    if not pIndex then
-      pIndex = #positionLookup + 1
-      positionLookup[pIndex] = {
-        m = sample.m,
-        z = sample.z,
-        sz = sample.sz,
-        rz = sample.rz,
-      }
-      indexByKey[key] = pIndex
-    end
-
-    out[i] = {
-      t = sample.t,
-      p = pIndex,
-      x = sample.x,
-      y = sample.y,
-    }
-  end
-
-  return out, positionLookup
-end
-
+--- Ensure SavedVariables tables exist and match the current schema version.
 local function EnsureSavedVariables()
+  ---@type table?
   local globalDb = QuestLogTrace
   if type(globalDb) ~= "table" or globalDb.schemaVersion ~= SCHEMA_VERSION then
     QuestLogTrace = {
@@ -267,7 +193,6 @@ local function EnsureSavedVariables()
   end
 
   QuestLogTrace.settings = type(QuestLogTrace.settings) == "table" and QuestLogTrace.settings or {}
-
   if type(QuestLogTrace.settings.maxSessions) ~= "number" or QuestLogTrace.settings.maxSessions < 1 then
     QuestLogTrace.settings.maxSessions = DEFAULT_MAX_SESSIONS
   end
@@ -276,165 +201,51 @@ local function EnsureSavedVariables()
   QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
 end
 
-local function CapturePlayerStaticInfo()
-  local raceLocalized, raceEnglish, raceID = UnitRace("player")
-  local classLocalized, classEnglish, classID = UnitClass("player")
-  local sex = UnitSex("player")
-
-  if not raceEnglish or not classEnglish or not sex or sex == 0 then
-    return false
-  end
-
-  playerStaticInfo = {
-    race = raceEnglish,
-    raceLocalized = raceLocalized,
-    raceID = raceID,
-    class = classEnglish,
-    classLocalized = classLocalized,
-    classID = classID,
-    sex = sex,
-  }
-
-  QuestLogTraceCharacter.player = ShallowCopyTable(playerStaticInfo)
-  return true
-end
-
-local function EnsurePlayerStaticInfo(attempt)
-  if playerStaticInfo then
-    playerInfoRetryScheduled = false
-    return
-  end
-
-  if CapturePlayerStaticInfo() then
-    playerInfoRetryScheduled = false
-    return
-  end
-
-  local currentAttempt = attempt or 1
-  if currentAttempt >= 50 then
-    playerInfoRetryScheduled = false
-    print(ADDON_NAME, "Unable to resolve player race/class/sex yet.")
-    return
-  end
-
-  if playerInfoRetryScheduled then
-    return
-  end
-
-  playerInfoRetryScheduled = true
-  C_After(0.20, function()
-    playerInfoRetryScheduled = false
-    EnsurePlayerStaticInfo(currentAttempt + 1)
-  end)
-end
-
-local function BuildPositionState()
-  local mapID = C_Map.GetBestMapForUnit("player")
-  local x, y = nil, nil
-  if mapID then
-    local position = C_Map.GetPlayerMapPosition(mapID, "player")
-    if position then
-      x, y = position:GetXY()
-      x = round(x, POSITION_DECIMALS)
-      y = round(y, POSITION_DECIMALS)
-    end
-  end
-
-  return {
-    m = mapID,
-    x = x,
-    y = y,
-    z = GetZoneText(),
-    sz = GetSubZoneText(),
-    rz = GetRealZoneText(),
-  }
-end
-
-local function IsSamePositionState(lhs, rhs)
-  if not lhs or not rhs then
-    return false
-  end
-
-  return lhs.m == rhs.m and
-      lhs.x == rhs.x and
-      lhs.y == rhs.y and
-      lhs.z == rhs.z and
-      lhs.sz == rhs.sz and
-      lhs.rz == rhs.rz
-end
-
-local function CapturePlayerPosition()
-  if not capture.active or not capture.current then
-    return false
-  end
-
-  local state = BuildPositionState()
-  local lastIndex = capture.current.lastPositionSampleIndex
-  local lastSample = lastIndex and capture.current.positionSamples[lastIndex] or nil
-
-  if lastSample and IsSamePositionState(lastSample, state) then
-    return lastIndex
-  end
-
-  local sample = {
-    t = GetTime() - capture.current.startedAt,
-    m = state.m,
-    x = state.x,
-    y = state.y,
-    z = state.z,
-    sz = state.sz,
-    rz = state.rz,
-  }
-
-  table.insert(capture.current.positionSamples, sample)
-  local newIndex = #capture.current.positionSamples
-  capture.current.lastPositionSampleIndex = newIndex
-  return true
-end
-
-local function ScheduleNextPositionSample(token)
-  C_After(POSITION_SAMPLE_INTERVAL, function()
-    if capture.active and capture.current and capture.current.token == token then
-      CapturePlayerPosition()
-      ScheduleNextPositionSample(token)
-    end
-  end)
-end
-
+--- Remove oldest sessions if the count exceeds the configured maximum.
 local function PruneSessionsIfNeeded()
+  ---@type number
   local maxSessions = QuestLogTrace.settings.maxSessions
+  ---@type SessionRecord[]
   local sessions = QuestLogTraceCharacter.sessions
   while #sessions > maxSessions do
     table.remove(sessions, 1)
   end
 end
 
-local function CreateSessionName(override)
-  local candidate = Trim(override)
-  if candidate ~= "" then
-    return candidate
+---------------------------------------------------------------------------
+-- Status data (consumed by UI)
+---------------------------------------------------------------------------
+
+--- Get the current capture state as a string label.
+---@return "running"|"stopped_unsaved"|"idle"
+function Core.GetCaptureState()
+  if capture.active then
+    return "running"
+  elseif capture.session then
+    return "stopped_unsaved"
+  else
+    return "idle"
   end
-  return date("%Y-%m-%d_%H-%M-%S")
 end
 
-local function GetCurrentCapturedEventCount()
-  if not capture.current then
-    return 0
-  end
-
-  return #capture.current.eventRecords
-end
-
+--- Get status data for UI consumption.
+---@return StatusData
 function Core.GetStatusData()
   return {
+    captureState = Core.GetCaptureState(),
     isRunning = capture.active,
-    sessionName = capture.current and (capture.current.name or "(unnamed)") or "None",
-    eventCount = GetCurrentCapturedEventCount(),
-    snapshotCount = (Core.GetQuestSnapshotCount and Core.GetQuestSnapshotCount()) or 0,
-    canSave = capture.current ~= nil,
+    sessionName = capture.session and (capture.session.name or "(unnamed)") or "None",
+    eventCount = capture.session and #capture.session.events or 0,
+    canSave = capture.session ~= nil and not capture.active,
   }
 end
 
+---------------------------------------------------------------------------
+-- Session lifecycle
+---------------------------------------------------------------------------
+
+--- Start a new capture session.
+---@param sessionName string? Optional name for the session
 function Core.StartCapture(sessionName)
   if capture.active then
     print(ADDON_NAME, "Capture already running.")
@@ -442,50 +253,28 @@ function Core.StartCapture(sessionName)
   end
 
   capture.token = capture.token + 1
-  local token = capture.token
+  capture.startedAt = GetTime()
+  capture.startedAtPrecise = GetTimePreciseSec()
 
-  if Core.ResetStateTracking then
-    Core.ResetStateTracking()
-  end
-
-  capture.current = {
-    token = token,
+  capture.session = {
+    schemaVersion = SCHEMA_VERSION,
     name = Trim(sessionName) ~= "" and Trim(sessionName) or nil,
-    startedAt = GetTime(),
-    eventRecords = {},
-    positionSamples = {},
-    lastPositionSampleIndex = nil,
-    levelEvents = {
-      {
-        t = 0,
-        e = "CAPTURE_START",
-        l = UnitLevel("player"),
-        a = { n = 0 },
-      },
-    },
-    player = ShallowCopyTable(playerStaticInfo),
+    startedAt        = capture.startedAt,
+    startedAtPrecise = capture.startedAtPrecise,
+    events = {},
+    functions = {},
+    functionsDelta = {},
   }
+
   capture.active = true
 
-  if Core.CaptureQuestState then
-    Core.CaptureQuestState()
-  end
-  if Core.CaptureReputationState then
-    Core.CaptureReputationState("CAPTURE_START")
-  end
-  CapturePlayerPosition()
-  ScheduleNextPositionSample(token)
-
-  C_After(0.20, function()
-    if capture.active and capture.current and capture.current.token == token then
-      if Core.CaptureQuestState then
-        Core.CaptureQuestState()
-      end
-      if Core.UpdateControlFrameStatus then
-        Core.UpdateControlFrameStatus()
-      end
+  -- Initialize all registered trackers
+  for i = 1, #Core._trackers do
+    local tracker = Core._trackers[i]
+    if tracker.Init then
+      tracker.Init(capture)
     end
-  end)
+  end
 
   print(ADDON_NAME, "Capture started.")
   if Core.UpdateControlFrameStatus then
@@ -493,15 +282,27 @@ function Core.StartCapture(sessionName)
   end
 end
 
+--- Stop the active capture session.
 function Core.StopCapture()
-  if not capture.active or not capture.current then
+  if not capture.active or not capture.session then
     print(ADDON_NAME, "No active capture to stop.")
     return
   end
 
-  CapturePlayerPosition()
-  capture.current.stoppedAt = GetTime()
+  capture.session.stoppedAt        = GetTime()
+  capture.session.stoppedAtPrecise = GetTimePreciseSec()
+  capture.session.duration         = capture.session.stoppedAt - capture.session.startedAt
+  capture.session.durationPrecise  = capture.session.stoppedAtPrecise - capture.session.startedAtPrecise
+
   capture.active = false
+
+  -- Notify trackers that capture has stopped
+  for i = 1, #Core._trackers do
+    local tracker = Core._trackers[i]
+    if tracker.OnCaptureStopped then
+      tracker.OnCaptureStopped(capture)
+    end
+  end
 
   print(ADDON_NAME, "Capture stopped.")
   if Core.UpdateControlFrameStatus then
@@ -509,181 +310,134 @@ function Core.StopCapture()
   end
 end
 
-function Core.SaveCapture(nameOverride)
+--- Discard the current unsaved session.
+function Core.ResetCapture()
   if capture.active then
-    Core.StopCapture()
-  end
-
-  if not capture.current then
-    print(ADDON_NAME, "Nothing to save. Start a capture first.")
+    print(ADDON_NAME, "Cannot reset while capture is running.")
     return
   end
-
-  local session = capture.current
-  local sessionName = CreateSessionName(nameOverride or session.name)
-  local serializedPositionSamples, positionLookup = SerializePositionSamples(session.positionSamples)
-  local questHistory = Core.SerializeQuestHistory and Core.SerializeQuestHistory() or {}
-  local questLogHistory = Core.SerializeQuestLogHistory and Core.SerializeQuestLogHistory() or {}
-  local completedQuestsHistory = Core.SerializeCompletedQuestsHistory and Core.SerializeCompletedQuestsHistory() or {}
-  local lootHistory = Core.SerializeLootHistory and Core.SerializeLootHistory() or {}
-  local reputationHistory, reputationMeta, reputationFactionCount, reputationSnapshotCount = {}, {}, 0, 0
-  if Core.SerializeReputationHistory then
-    reputationHistory, reputationMeta, reputationFactionCount, reputationSnapshotCount = Core.SerializeReputationHistory()
-  end
-
-  local record = {
-    schemaVersion = SCHEMA_VERSION,
-    name = sessionName,
-    startedAt = session.startedAt,
-    stoppedAt = session.stoppedAt or GetTime(),
-    duration = (session.stoppedAt or GetTime()) - session.startedAt,
-    state = {
-      questHistory = questHistory,
-      questLogHistory = questLogHistory,
-      completedQuestsHistory = completedQuestsHistory,
-      eventRecords = session.eventRecords,
-      positionSamples = serializedPositionSamples,
-      positionLookup = positionLookup,
-      levelEvents = session.levelEvents,
-      lootHistory = lootHistory,
-      reputationHistory = reputationHistory,
-      reputationMeta = reputationMeta,
-    },
-    player = session.player or ShallowCopyTable(playerStaticInfo),
-    summary = {
-      eventCount = #session.eventRecords,
-      questCount = CountTableKeys(questHistory),
-      questLogSnapshots = #questLogHistory,
-      completedQuestSnapshots = #completedQuestsHistory,
-      lootSnapshotCount = #lootHistory,
-      reputationFactionCount = reputationFactionCount,
-      reputationSnapshotCount = reputationSnapshotCount,
-      completedQuestCount = (Core.GetLatestCompletedQuestCount and Core.GetLatestCompletedQuestCount()) or 0,
-      positionSampleCount = #serializedPositionSamples,
-      levelEventCount = #session.levelEvents,
-    },
-  }
-
-  QuestLogTraceCharacter.sessions[#QuestLogTraceCharacter.sessions + 1] = record
-  QuestLogTraceCharacter.lastSavedSession = sessionName
-  QuestLogTraceCharacter.lastSessionSummary = record.summary
-
-  PruneSessionsIfNeeded()
-
-  capture.current = nil
-  print(ADDON_NAME, "Saved session:", sessionName, "events:", record.summary.eventCount)
+  capture.session = nil
+  print(ADDON_NAME, "Session discarded.")
   if Core.UpdateControlFrameStatus then
     Core.UpdateControlFrameStatus()
   end
 end
 
-local function ToggleQLTrace()
-  if not QLTrace then
-    print(ADDON_NAME, "QLTrace frame not loaded yet.")
+--- Save the current capture session to SavedVariables.
+---@param nameOverride string? Optional name override for the session
+function Core.SaveCapture(nameOverride)
+  if capture.active then
+    Core.StopCapture()
+  end
+
+  if not capture.session then
+    print(ADDON_NAME, "Nothing to save. Start a capture first.")
     return
   end
 
-  QLTrace:SetShown(not QLTrace:IsShown())
+  ---@type SessionRecord
+  local session = capture.session
+  session.name = CreateSessionName(nameOverride or session.name)
+
+  -- Ensure stop timestamps exist
+  if not session.stoppedAt then
+    session.stoppedAt        = GetTime()
+    session.stoppedAtPrecise = GetTimePreciseSec()
+    session.duration         = session.stoppedAt - session.startedAt
+    session.durationPrecise  = session.stoppedAtPrecise - session.startedAtPrecise
+  end
+
+  -- The session IS the record — events, functions, functionsDelta are already
+  -- populated in-place by the trackers. No serialization step needed.
+  QuestLogTraceCharacter.sessions[#QuestLogTraceCharacter.sessions + 1] = session
+  QuestLogTraceCharacter.lastSavedSession = session.name
+
+  PruneSessionsIfNeeded()
+
+  ---@type number
+  local eventCount = #session.events
+  capture.session = nil
+
+  print(ADDON_NAME, "Saved session:", session.name, "events:", eventCount)
+  if Core.UpdateControlFrameStatus then
+    Core.UpdateControlFrameStatus()
+  end
 end
 
-local function ProcessTrackedEvent(event, ...)
-  if not capture.active or not capture.current then
-    return
-  end
+---------------------------------------------------------------------------
+-- Event processing
+---------------------------------------------------------------------------
 
-  local packedArgs = CopyPackedArgs(safePack(...))
-  local triggerRecord = {
+--- Process a tracked event: record it and dispatch to registered tracker callbacks.
+---@param event string The event name
+---@param ... any Event arguments
+local function ProcessTrackedEvent(event, ...)
+  if not capture.active or not capture.session then return end
+
+  -- Record raw event
+  ---@type number
+  local t  = GetTime()          - capture.startedAt
+  ---@type number
+  local tp = GetTimePreciseSec() - capture.startedAtPrecise
+  ---@type PackedArgs
+  local packedArgs = Core.CopyPacked(Core.PackArgs(...))
+
+  capture.session.events[#capture.session.events + 1] = {
+    t = t,
+    tp = tp,
     e = event,
-    t = GetTime() - capture.current.startedAt,
     a = packedArgs,
   }
-  table.insert(capture.current.eventRecords, triggerRecord)
 
-  if event == "LOOT_READY" and Core.CaptureLootState then
-    local hasLoot = Core.CaptureLootState(event)
-    if hasLoot then
-      CapturePlayerPosition()
+  -- Dispatch to registered tracker callbacks
+  ---@type fun(capture: CaptureState, event: string, ...)[]?
+  local callbacks = Core._trackerCallbacks[event]
+  if callbacks then
+    for i = 1, #callbacks do
+      callbacks[i](capture, event, ...)
     end
-  end
-
-  if event == "CHAT_MSG_COMBAT_FACTION_CHANGE" and Core.CaptureReputationState then
-    Core.CaptureReputationState(event)
-  end
-
-  if POSITION_SAMPLING_EVENTS[event] then
-    CapturePlayerPosition()
-  end
-
-  if event == "PLAYER_LEVEL_UP" then
-    table.insert(capture.current.levelEvents, {
-      t = GetTime() - capture.current.startedAt,
-      e = event,
-      l = UnitLevel("player"),
-      a = CopyPackedArgs(packedArgs),
-    })
-  end
-
-  -- When zero-delay sampling is configured, capture state immediately in this callstack
-  -- and still keep the zero-delay timer sample in the loop below.
-  local hasZeroDelay = false
-  for i = 1, #SAMPLE_DELAYS do
-    if SAMPLE_DELAYS[i] == 0 then
-      hasZeroDelay = true
-      break
-    end
-  end
-
-  if hasZeroDelay and Core.CaptureQuestState then
-    Core.CaptureQuestState()
-  end
-
-  local token = capture.current.token
-  for i = 1, #SAMPLE_DELAYS do
-    local delay = SAMPLE_DELAYS[i]
-    C_After(delay, function()
-      if capture.active and capture.current and capture.current.token == token then
-        if Core.CaptureQuestState then
-          Core.CaptureQuestState()
-        end
-        if Core.UpdateControlFrameStatus then
-          Core.UpdateControlFrameStatus()
-        end
-      end
-    end)
   end
 end
 
+---------------------------------------------------------------------------
+-- Slash commands
+---------------------------------------------------------------------------
+
+--- Print the current capture status to chat.
 local function PrintStatus()
+  ---@type StatusData
   local state = Core.GetStatusData()
+  ---@type string
   local running = state.isRunning and "running" or "stopped"
-  print(ADDON_NAME, "status:", running, "session:", state.sessionName, "events:", state.eventCount, "snapshots:",
-    state.snapshotCount)
+  print(ADDON_NAME, "status:", running, "session:", state.sessionName, "events:", state.eventCount)
 end
 
+--- Print the available slash commands to chat.
 local function PrintHelp()
   print("/qlt start [name] - Start capture")
   print("/qlt stop - Stop active capture")
   print("/qlt save [name] - Save current capture")
+  print("/qlt reset - Discard unsaved capture")
   print("/qlt status - Show capture status")
   print("/qlt ui - Toggle control frame")
-  print("/qltrace - Toggle QLTrace window")
 end
 
+---@param msg string? The slash command arguments
 SlashCmdList["QUESTLOGTRACE"] = function(msg)
+  ---@type string, string?
   local action, argument = strsplit(" ", msg or "", 2)
   action = string.lower(action or "")
 
   if action == "" or action == "help" then
     PrintHelp()
-    return
-  end
-
-  if action == "start" then
+  elseif action == "start" then
     Core.StartCapture(argument)
   elseif action == "stop" then
     Core.StopCapture()
   elseif action == "save" then
     Core.SaveCapture(argument)
+  elseif action == "reset" then
+    Core.ResetCapture()
   elseif action == "status" then
     PrintStatus()
   elseif action == "ui" then
@@ -699,15 +453,17 @@ end
 SLASH_QUESTLOGTRACE1 = "/questlogtrace"
 SLASH_QUESTLOGTRACE2 = "/qlt"
 
-SlashCmdList["QLTRACE"] = function()
-  ToggleQLTrace()
-end
-SLASH_QLTRACE1 = "/qltrace"
+---------------------------------------------------------------------------
+-- Bootstrap
+---------------------------------------------------------------------------
 
+--- Main event handler for the addon's event frame.
+---@param _ Frame
+---@param event string
+---@param ... any
 local function OnEvent(_, event, ...)
   if event == "VARIABLES_LOADED" then
     EnsureSavedVariables()
-    EnsurePlayerStaticInfo(1)
     if Core.BuildControlFrame then
       Core.BuildControlFrame()
     end
@@ -717,16 +473,14 @@ local function OnEvent(_, event, ...)
     return
   end
 
-  if event == "PLAYER_LOGIN" then
-    EnsurePlayerStaticInfo(1)
-  end
-
   ProcessTrackedEvent(event, ...)
 end
 
+---@type Frame
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("VARIABLES_LOADED")
 for i = 1, #TRACKED_EVENTS do
+  ---@type boolean
   local ok = pcall(eventFrame.RegisterEvent, eventFrame, TRACKED_EVENTS[i])
   if not ok then
     print(ADDON_NAME, "Skipping unsupported event:", TRACKED_EVENTS[i])
