@@ -26,7 +26,7 @@
     ".types",
     "WoW-API",
     "./Libs/**",
-    "./specs/WoW-API"
+    "./Documentation/WoW-API"
     // "Libs" // Should this be here?
   ],
 
@@ -41,7 +41,7 @@
     "./Libs/**",
 
     // Logons WoW-API Reference.
-    "./specs/WoW-API"
+    "./Documentation/WoW-API"
   ],
   "format": {
     "defaultConfig": {

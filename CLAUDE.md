@@ -11,7 +11,7 @@
 **Specifications:**
   - `./specs` contains program design specifications
   - `./tasks` contain current implementation design documents
-  - `./specs/WoW-API` contains the full Blizzard UI code and Function Documentation
+  - `./Documentation/WoW-API` contains the full Blizzard UI code and Function Documentation
 **Code Directories:**
   - `./Trackers` contains all the implementations of different areas we track in World of Warcraft.
 **Code Files:**
@@ -30,7 +30,7 @@
 
   - WebSearch `warcraft.wiki.gg` is the most up to date source.
     - e.g. https://warcraft.wiki.gg/wiki/API_GetTimePreciseSec
-  - Local full API documentation and Blizzard UI code can be found in `./specs/WoW-API`
+  - Local full API documentation and Blizzard UI code can be found in `./Documentation/WoW-API`
 
 ## Language Server
 
