@@ -91,6 +91,8 @@ Core.RegisterTracker({
     "PETITION_CLOSED",
     "GUILDBANKFRAME_OPENED",
     "GUILDBANKFRAME_CLOSED",
+    "PLAYER_ENTERING_WORLD",
+    "SPELLS_CHANGED",
   },
 
   ---@param capture CaptureState

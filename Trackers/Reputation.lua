@@ -137,6 +137,8 @@ Core.RegisterTracker({
     "CHAT_MSG_COMBAT_FACTION_CHANGE",
     "UPDATE_FACTION",
     "QUEST_TURNED_IN",
+    "PLAYER_ENTERING_WORLD",
+    "SPELLS_CHANGED",
   },
 
   ---@param capture CaptureState
@@ -153,8 +155,7 @@ Core.RegisterTracker({
 
   ---@param capture CaptureState
   ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnEvent = function(capture, event)
     -- Recursion guard: ExpandFactionHeader fires UPDATE_FACTION
     if collecting then return end
 

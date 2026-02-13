@@ -236,6 +236,8 @@ Core.RegisterTracker({
     "QUEST_WATCH_LIST_CHANGED",
     "QUESTLINE_UPDATE",
     "TASK_PROGRESS_UPDATE",
+    "PLAYER_ENTERING_WORLD",
+    "SPELLS_CHANGED",
   },
 
   ---@param capture CaptureState

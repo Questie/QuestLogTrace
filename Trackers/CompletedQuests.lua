@@ -132,6 +132,8 @@ Core.RegisterTracker({
     "QUEST_WATCH_LIST_CHANGED",
     "QUESTLINE_UPDATE",
     "TASK_PROGRESS_UPDATE",
+    "PLAYER_ENTERING_WORLD",
+    "SPELLS_CHANGED",
   },
 
   ---@param capture CaptureState
@@ -156,9 +158,7 @@ Core.RegisterTracker({
   end,
 
   ---@param capture CaptureState
-  ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnEvent = function(capture)
     SampleCompleted(capture)
     ScheduleDelayedSamples(capture)
   end,

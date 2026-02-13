@@ -11,7 +11,7 @@ local Core = QuestLogTraceCore
 local stream
 
 Core.RegisterTracker({
-  events = { "PLAYER_LEVEL_UP" },
+  events = { "PLAYER_LEVEL_UP", "PLAYER_ENTERING_WORLD", "SPELLS_CHANGED" },
 
   ---@param capture CaptureState
   Init = function(capture)
@@ -26,9 +26,7 @@ Core.RegisterTracker({
   end,
 
   ---@param capture CaptureState
-  ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnEvent = function(capture)
     if not stream then return end
     ---@type number
     local level = UnitLevel("player")

@@ -119,6 +119,7 @@ Core.RegisterTracker({
     "PLAYER_MAP_CHANGED",
     "AREA_POIS_UPDATED",
     "NEW_WMO_CHUNK",
+    "SPELLS_CHANGED",
   },
 
   ---@param capture CaptureState
