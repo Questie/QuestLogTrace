@@ -206,13 +206,39 @@ export type EventCategory =
   | "target"
   | "zone"
   | "inventory"
+  | "npc"
+  | "init"
   | "other";
+
+const NPC_EVENTS = new Set([
+  "MERCHANT_SHOW", "MERCHANT_CLOSED",
+  "TRAINER_SHOW", "TRAINER_CLOSED",
+  "MAIL_SHOW", "MAIL_CLOSED",
+  "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED",
+  "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+  "TAXIMAP_OPENED", "TAXIMAP_CLOSED",
+  "GUILD_REGISTRAR_SHOW", "GUILD_REGISTRAR_CLOSED",
+  "PET_STABLE_SHOW", "PET_STABLE_CLOSED",
+  "BATTLEFIELDS_SHOW", "BATTLEFIELDS_CLOSED",
+  "PETITION_SHOW", "PETITION_CLOSED",
+  "GUILDBANKFRAME_OPENED", "GUILDBANKFRAME_CLOSED",
+]);
+
+const INIT_EVENTS = new Set([
+  "ADDON_LOADED",
+  "PLAYER_LOGIN",
+  "PLAYER_LOGOUT",
+  "PLAYER_LEAVING_WORLD",
+  "SPELLS_CHANGED",
+]);
 
 export function categorizeEvent(name: string): EventCategory {
   if (
     name.startsWith("QUEST_") ||
     name === "UNIT_QUEST_LOG_CHANGED" ||
-    name === "QUESTLINE_UPDATE"
+    name === "QUESTLINE_UPDATE" ||
+    name === "GOSSIP_SHOW" ||
+    name === "GOSSIP_CLOSED"
   )
     return "quest";
   if (
@@ -221,7 +247,12 @@ export function categorizeEvent(name: string): EventCategory {
     name === "CHAT_MSG_MONEY"
   )
     return "loot";
-  if (name.startsWith("CHAT_MSG_COMBAT")) return "combat";
+  if (
+    name.startsWith("CHAT_MSG_COMBAT") ||
+    name === "PLAYER_REGEN_DISABLED" ||
+    name === "PLAYER_REGEN_ENABLED"
+  )
+    return "combat";
   if (name.startsWith("CHAT_MSG_")) return "chat";
   if (name === "PLAYER_STARTED_MOVING" || name === "PLAYER_STOPPED_MOVING")
     return "movement";
@@ -234,6 +265,8 @@ export function categorizeEvent(name: string): EventCategory {
   )
     return "zone";
   if (name.startsWith("BAG_") || name.startsWith("ITEM_")) return "inventory";
+  if (NPC_EVENTS.has(name)) return "npc";
+  if (INIT_EVENTS.has(name)) return "init";
   return "other";
 }
 

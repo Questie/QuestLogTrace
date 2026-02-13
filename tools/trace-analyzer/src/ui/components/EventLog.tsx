@@ -22,6 +22,8 @@ const CATEGORIES: { key: EventCategory; label: string }[] = [
   { key: "target", label: "Target" },
   { key: "zone", label: "Zone" },
   { key: "inventory", label: "Inv" },
+  { key: "npc", label: "NPC" },
+  { key: "init", label: "Init" },
   { key: "other", label: "Other" },
 ];
 
