@@ -70,9 +70,9 @@ end
 --- Build the control frame UI for the addon.
 function Core.BuildControlFrame()
   if controlFrame then return end
- 
+
   local frame = CreateFrame("Frame", "QuestLogTraceControlFrame", UIParent) --[[@as ControlFrame]]
-  frame:SetSize(250, 100)
+  frame:SetSize(250, 120)
   frame:SetPoint("TOP", UIParent, "TOP", 0, -50)
   frame:SetClampedToScreen(true)
   frame:SetMovable(true)

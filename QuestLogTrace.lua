@@ -92,6 +92,15 @@ local TRACKED_EVENT_CATEGORIES = {
     },
   },
   {
+    name = "initialization",
+    events = {
+      "ADDON_LOADED",
+      "SPELLS_CHANGED",
+      "PLAYER_LOGOUT",
+      "PLAYER_LEAVING_WORLD",
+    },
+  },
+  {
     name = "player_state",
     events = {
       "PLAYER_LOGIN",
@@ -155,8 +164,8 @@ local TRACKED_EVENT_CATEGORIES = {
   {
     name = "inventory",
     events = {
-      "BAG_UPDATE",
-      "BAG_UPDATE_DELAYED",
+      -- "BAG_UPDATE",
+      -- "BAG_UPDATE_DELAYED",
       "ITEM_PUSH",
       "ITEM_LOCK_CHANGED",
       "ITEM_COUNT_CHANGED",
@@ -180,6 +189,18 @@ do
   end
 end
 Core.TRACKED_EVENT_CATEGORIES = TRACKED_EVENT_CATEGORIES
+
+---------------------------------------------------------------------------
+-- Event filters (skip events that don't match criteria)
+---------------------------------------------------------------------------
+
+local EVENT_FILTERS = {
+  ---@param addonName string
+  ---@return boolean
+  ADDON_LOADED = function(addonName)
+    return addonName == ADDON_NAME
+  end,
+}
 
 ---------------------------------------------------------------------------
 -- Helpers
@@ -222,6 +243,10 @@ local function EnsureSavedVariables()
   QuestLogTrace.settings = type(QuestLogTrace.settings) == "table" and QuestLogTrace.settings or {}
   if type(QuestLogTrace.settings.maxSessions) ~= "number" or QuestLogTrace.settings.maxSessions < 1 then
     QuestLogTrace.settings.maxSessions = DEFAULT_MAX_SESSIONS
+  end
+
+  if QuestLogTrace.settings.autoStart == nil then
+    QuestLogTrace.settings.autoStart = true
   end
 
   QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
@@ -446,6 +471,7 @@ local function PrintHelp()
   print("/qlt save [name] - Save current capture")
   print("/qlt reset - Discard unsaved capture")
   print("/qlt status - Show capture status")
+  print("/qlt auto - Toggle auto-start on login")
   print("/qlt ui - Toggle control frame")
 end
 
@@ -467,6 +493,9 @@ SlashCmdList["QUESTLOGTRACE"] = function(msg)
     Core.ResetCapture()
   elseif action == "status" then
     PrintStatus()
+  elseif action == "auto" then
+    QuestLogTrace.settings.autoStart = not QuestLogTrace.settings.autoStart
+    print(ADDON_NAME, "Auto-start on login:", QuestLogTrace.settings.autoStart and "enabled" or "disabled")
   elseif action == "ui" then
     if Core.ToggleControlFrame then
       Core.ToggleControlFrame()
@@ -489,6 +518,7 @@ SLASH_QUESTLOGTRACE2 = "/qlt"
 ---@param event string
 ---@param ... any
 local function OnEvent(_, event, ...)
+  -- 1. Initialization (unchanged)
   if event == "VARIABLES_LOADED" then
     EnsureSavedVariables()
     if Core.BuildControlFrame then
@@ -500,7 +530,29 @@ local function OnEvent(_, event, ...)
     return
   end
 
+  -- 2. Event filtering
+  local filter = EVENT_FILTERS[event]
+  if filter and not filter(...) then return end
+
+  -- 3. Auto-start on PLAYER_LOGIN
+  --    StartCapture BEFORE ProcessTrackedEvent so PLAYER_LOGIN
+  --    is recorded as the first event in the session.
+  if event == "PLAYER_LOGIN" and not capture.active then
+    local settings = QuestLogTrace and QuestLogTrace.settings
+    if settings and settings.autoStart ~= false then
+      Core.StartCapture()
+    end
+  end
+
+  -- 4. Process the event (record + dispatch to trackers)
   ProcessTrackedEvent(event, ...)
+
+  -- 5. Auto-save on PLAYER_LOGOUT
+  --    ProcessTrackedEvent runs first so the event is recorded
+  --    in the session before saving.
+  if event == "PLAYER_LOGOUT" and capture.active then
+    Core.SaveCapture()
+  end
 end
 
 ---@type Frame
