@@ -220,6 +220,7 @@ end
 local function CreateSessionName(override)
   local candidate = Trim(override)
   if candidate ~= "" then return candidate end
+  ---@diagnostic disable-next-line: return-type-mismatch
   return date("%Y-%m-%d_%H-%M-%S")
 end
 
