@@ -12,6 +12,7 @@
   - `./specs` contains program design specifications
   - `./tasks` contain current implementation design documents
   - `./Documentation/WoW-API` contains the full Blizzard UI code and Function Documentation
+  - `./Documentation/WoW-Event` contains the almost all Blizzard events for World of Warcraft.
 **Code Directories:**
   - `./Trackers` contains all the implementations of different areas we track in World of Warcraft.
 **Code Files:**
