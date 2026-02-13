@@ -1,4 +1,4 @@
-# Tracker Spec (v8)
+# Tracker Spec (v9)
 
 How trackers are structured, registered, and dispatched. This is the core
 architecture pattern for capturing WoW API function data.
@@ -212,12 +212,13 @@ everything to nil/0 on `LOOT_CLOSED`.
 | Tracker | File | Functions | Trigger | Events |
 |---|---|---|---|---|
 | PlayerIdentity | `Trackers/PlayerIdentity.lua` | `UnitRace["player"]`, `UnitClass["player"]`, `UnitSex["player"]` | Init only (t=0) | None |
-| UnitLevel | `Trackers/UnitLevel.lua` | `UnitLevel["player"]` | Event-driven | `PLAYER_LEVEL_UP` |
-| Position | `Trackers/Position.lua` | `GetZoneText`, `GetSubZoneText`, `GetRealZoneText`, `C_Map.GetBestMapForUnit["player"]`, `C_Map.GetPlayerMapPosition["player"]` | Timer (0.2s) + event-driven | `ZONE_CHANGED`, `ZONE_CHANGED_NEW_AREA`, `ZONE_CHANGED_INDOORS`, `PLAYER_ENTERING_WORLD`, `PLAYER_ALIVE`, `PLAYER_STARTED_MOVING`, `PLAYER_STOPPED_MOVING`, `MAP_EXPLORATION_UPDATED`, `PLAYER_MAP_CHANGED`, `AREA_POIS_UPDATED`, `NEW_WMO_CHUNK` |
+| UnitLevel | `Trackers/UnitLevel.lua` | `UnitLevel["player"]` | Event-driven | `PLAYER_LEVEL_UP`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
+| Position | `Trackers/Position.lua` | `GetZoneText`, `GetSubZoneText`, `GetRealZoneText`, `C_Map.GetBestMapForUnit["player"]`, `C_Map.GetPlayerMapPosition["player"]` | Timer (0.2s) + event-driven | `ZONE_CHANGED`, `ZONE_CHANGED_NEW_AREA`, `ZONE_CHANGED_INDOORS`, `PLAYER_ENTERING_WORLD`, `PLAYER_ALIVE`, `PLAYER_STARTED_MOVING`, `PLAYER_STOPPED_MOVING`, `MAP_EXPLORATION_UPDATED`, `PLAYER_MAP_CHANGED`, `AREA_POIS_UPDATED`, `NEW_WMO_CHUNK`, `SPELLS_CHANGED` |
 | Loot | `Trackers/Loot.lua` | `GetNumLootItems`, `GetLootSlotInfo[slot]`, `GetLootSourceInfo[slot]`, `GetLootSlotLink[slot]`, `GetLootSlotType[slot]` | Event + window lifecycle | `LOOT_READY` (sample), `LOOT_CLOSED` (reset) |
-| Reputation | `Trackers/Reputation.lua` | `FactionOrder`, `GetFactionInfoByID[factionID]` | Event + index iteration | `CHAT_MSG_COMBAT_FACTION_CHANGE`, `UPDATE_FACTION`, `QUEST_TURNED_IN` |
-| QuestLog | `Trackers/QuestLog.lua` | `QuestLog`, `IsQuestComplete[qid]`, `C_QuestLog.IsQuestFlaggedCompleted[qid]`, `C_QuestLog.GetQuestObjectives[qid]`, `GetQuestLogTitle[qid]`, `GetQuestTagInfo[qid]` | Event + delayed re-samples + index iteration | 14 quest events (see EVENT_CATALOG) |
-| CompletedQuests | `Trackers/CompletedQuests.lua` | `GetQuestsCompleted` (functionsDelta) | Event + delayed re-samples | Same 14 quest events |
+| Reputation | `Trackers/Reputation.lua` | `FactionOrder`, `GetFactionInfoByID[factionID]` | Event + index iteration | `CHAT_MSG_COMBAT_FACTION_CHANGE`, `UPDATE_FACTION`, `QUEST_TURNED_IN`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
+| QuestLog | `Trackers/QuestLog.lua` | `QuestLog`, `IsQuestComplete[qid]`, `C_QuestLog.IsQuestFlaggedCompleted[qid]`, `C_QuestLog.GetQuestObjectives[qid]`, `GetQuestLogTitle[qid]`, `GetQuestTagInfo[qid]` | Event + delayed re-samples + index iteration | 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` (see EVENT_CATALOG) |
+| CompletedQuests | `Trackers/CompletedQuests.lua` | `GetQuestsCompleted` (functionsDelta) | Event + delayed re-samples | Same 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
+| UnitInteraction | `Trackers/UnitInteraction.lua` | `UnitGUID["target","npc","questnpc"]`, `UnitName["target","npc","questnpc"]` | Event-driven | `PLAYER_TARGET_CHANGED`, 8 quest dialog, `QUEST_ACCEPTED`, `QUEST_TURNED_IN`, `LOOT_OPENED`, 22 npc_interaction, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` (37 total) |
 
 ---
 
@@ -249,6 +250,8 @@ Two distinct phases:
 | `QUEST_TURNED_IN` | CollectAndSample (quest rewards can reveal new factions) |
 | `CHAT_MSG_COMBAT_FACTION_CHANGE` | SampleReputation only (values changed, set unchanged) |
 | `UPDATE_FACTION` | SampleReputation only (same) |
+| `PLAYER_ENTERING_WORLD` | SampleReputation only (login-time sampling) |
+| `SPELLS_CHANGED` | SampleReputation only (login-time sampling) |
 
 ### Expand-only policy
 

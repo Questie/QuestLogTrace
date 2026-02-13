@@ -9,6 +9,7 @@ QuestLogTrace = {
   schemaVersion = 8,
   settings = {
     maxSessions = 20,
+    autoStart = true,
   },
 }
 ```
@@ -144,6 +145,13 @@ When a function returns `nil`, that is stored as a change. This is how
 transient-window APIs (e.g. loot functions between `LOOT_READY` and
 `LOOT_CLOSED`) return to their inactive state.
 
+**Nil serialization note.** When code stores `{ t = t, tp = tp, v = nil }`,
+Lua serialization omits the `v` key entirely. After deserialization, the
+entry appears as `{ t = ..., tp = ... }` with no `v` field. This is
+transparent to consumers because `entry.v == nil` evaluates to `true`
+regardless of whether the key exists or was omitted. The emulation
+algorithm handles this correctly with no special handling needed.
+
 ---
 
 ## 6) Delta streams
@@ -180,6 +188,13 @@ Used in event args and tuple-returning function values.
 ```
 
 `n` preserves the argument count even when `nil` appears in the middle.
+
+**Sparse arrays after serialization.** When WoW API functions return `nil`
+in middle positions, Lua serialization omits those values, creating gaps
+in the stored array (e.g. indices jump from 3 to 5). The `n` field is
+authoritative for the true argument count. Consumers must use
+`unpack(v, 1, v.n)` to correctly reconstruct nils for missing indices.
+This is expected behavior, not a bug.
 
 ---
 
@@ -233,8 +248,15 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `IsQuestComplete` | scalar (boolean) | |
 | `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean) | |
 | `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]) | |
-| `GetQuestLogTitle` | tuple (n=8) | |
+| `GetQuestLogTitle` | tuple (n=17) | |
 | `GetQuestTagInfo` | tuple (n varies) | |
+
+### Parameterized by unit token (`"target"`, `"npc"`, `"questnpc"`)
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `UnitGUID` | scalar (string) or nil | GUID string; nil when no unit |
+| `UnitName` | tuple (n=2) or nil | name, realm; nil when no unit |
 
 ### Parameterized by slot index
 
@@ -371,11 +393,14 @@ number of entries.
       },
     },
 
-    -- GetQuestLogTitle (tuple, n=8)
+    -- GetQuestLogTitle (tuple, n=17)
+    -- Returns: title, level, suggestedGroup, isHeader, isCollapsed, isComplete,
+    --          frequency, questID, startEvent, displayQuestID, isOnMap,
+    --          hasLocalPOI, isTask, isBounty, isStory, isHidden, isScaling
     ["GetQuestLogTitle"] = {
       [56789] = {
-        { t = 0.500, tp = 0.50033, v = { "A New Threat", 2, false, false, false, false, false, 56789, n = 8 } },
-        { t = 49.000, tp = 49.00021, v = { "A New Threat", 2, true, false, false, false, false, 56789, n = 8 } },
+        { t = 0.500, tp = 0.50033, v = { "A New Threat", 2, 0, false, false, false, 0, 56789, false, false, false, false, false, false, false, false, false, n = 17 } },
+        { t = 49.000, tp = 49.00021, v = { "A New Threat", 2, 0, false, false, true, 0, 56789, false, false, false, false, false, false, false, false, false, n = 17 } },
       },
     },
 
