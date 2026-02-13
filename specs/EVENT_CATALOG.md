@@ -54,14 +54,15 @@ Triggers `UnitLevel("player")` sampling.
 ### Position tracker
 
 Triggers position function sampling (in addition to 0.2s timer).
+Also registers a private event frame for `PLAYER_STARTED_MOVING` and
+`PLAYER_STOPPED_MOVING` — these trigger sampling but are NOT recorded
+in the event stream (avoids spam).
 
 - `ZONE_CHANGED`
 - `ZONE_CHANGED_NEW_AREA`
 - `ZONE_CHANGED_INDOORS`
 - `PLAYER_ENTERING_WORLD`
 - `PLAYER_ALIVE`
-- `PLAYER_STARTED_MOVING`
-- `PLAYER_STOPPED_MOVING`
 - `MAP_EXPLORATION_UPDATED`
 - `PLAYER_MAP_CHANGED`
 - `AREA_POIS_UPDATED`

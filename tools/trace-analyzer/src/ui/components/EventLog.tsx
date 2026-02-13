@@ -18,7 +18,6 @@ const CATEGORIES: { key: EventCategory; label: string }[] = [
   { key: "loot", label: "Loot" },
   { key: "combat", label: "Combat" },
   { key: "chat", label: "Chat" },
-  { key: "movement", label: "Move" },
   { key: "target", label: "Target" },
   { key: "zone", label: "Zone" },
   { key: "inventory", label: "Inv" },

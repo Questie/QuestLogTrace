@@ -202,7 +202,6 @@ export type EventCategory =
   | "loot"
   | "combat"
   | "chat"
-  | "movement"
   | "target"
   | "zone"
   | "inventory"
@@ -254,8 +253,6 @@ export function categorizeEvent(name: string): EventCategory {
   )
     return "combat";
   if (name.startsWith("CHAT_MSG_")) return "chat";
-  if (name === "PLAYER_STARTED_MOVING" || name === "PLAYER_STOPPED_MOVING")
-    return "movement";
   if (name === "PLAYER_TARGET_CHANGED" || name.startsWith("NAME_PLATE_"))
     return "target";
   if (

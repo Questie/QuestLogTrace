@@ -106,6 +106,25 @@ local function ScheduleTimer(capture)
   end)
 end
 
+---------------------------------------------------------------------------
+-- Private movement event frame
+-- PLAYER_STARTED_MOVING / PLAYER_STOPPED_MOVING fire frequently. We use
+-- them as position sampling triggers but keep them out of the main event
+-- stream to avoid bloat.
+---------------------------------------------------------------------------
+
+---@type CaptureState?
+local captureRef
+
+---@type Frame
+local movementFrame = CreateFrame("Frame")
+movementFrame:RegisterEvent("PLAYER_STARTED_MOVING")
+movementFrame:RegisterEvent("PLAYER_STOPPED_MOVING")
+movementFrame:SetScript("OnEvent", function()
+  if not captureRef or not captureRef.active then return end
+  SampleAll(captureRef)
+end)
+
 Core.RegisterTracker({
   events = {
     "ZONE_CHANGED",
@@ -113,8 +132,6 @@ Core.RegisterTracker({
     "ZONE_CHANGED_INDOORS",
     "PLAYER_ENTERING_WORLD",
     "PLAYER_ALIVE",
-    "PLAYER_STARTED_MOVING",
-    "PLAYER_STOPPED_MOVING",
     "MAP_EXPLORATION_UPDATED",
     "PLAYER_MAP_CHANGED",
     "AREA_POIS_UPDATED",
@@ -124,6 +141,8 @@ Core.RegisterTracker({
 
   ---@param capture CaptureState
   Init = function(capture)
+    captureRef = capture
+
     ---@type table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
     local functions = capture.session.functions
 
@@ -154,5 +173,6 @@ Core.RegisterTracker({
   ---@param capture CaptureState
   OnCaptureStopped = function(capture)
     SampleAll(capture)
+    captureRef = nil
   end,
 })
