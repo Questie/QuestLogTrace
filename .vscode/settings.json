@@ -1,7 +1,9 @@
 {
   "files.exclude": {
     "**/WoW-API/COMMIT_HASHES.md": false,
-    "**/WoW-API/*": true
+    "**/WoW-API/*": true,
+    "**/WoW-Event/*": true,
+    "**/WoW-Widget/*": true
   },
   "search.exclude": {
     // "**/WoW-API": true,
