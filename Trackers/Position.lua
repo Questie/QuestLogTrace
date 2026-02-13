@@ -3,6 +3,17 @@ local Core = QuestLogTraceCore
 ---@type fun(num: number?, decimals: number?): number?
 local Round = Core.Round
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- GetZoneText()    -> string text
+-- GetSubZoneText() -> string text
+-- GetRealZoneText() -> string text
+--
+-- C_Map.GetBestMapForUnit(unit)              -> number? uiMapID
+-- C_Map.GetPlayerMapPosition(uiMapID, unit)  -> vector2? position  -- stored as {x, y}
+---------------------------------------------------------------------------
+
 ---@type number
 local POSITION_DECIMALS = 4
 ---@type number

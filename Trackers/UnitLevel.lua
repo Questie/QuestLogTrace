@@ -1,6 +1,12 @@
 ---@type QuestLogTraceCore
 local Core = QuestLogTraceCore
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- UnitLevel(unit) -> number level
+---------------------------------------------------------------------------
+
 ---@type FunctionStreamEntry[]? Shortcut to functions["UnitLevel"]["player"]
 local stream
 

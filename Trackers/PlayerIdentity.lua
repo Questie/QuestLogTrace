@@ -1,6 +1,20 @@
 ---@type QuestLogTraceCore
 local Core = QuestLogTraceCore
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- UnitRace(unit)  -> string localizedRaceName,
+--                    string englishRaceName,
+--                    number raceID
+--
+-- UnitClass(unit) -> string className,
+--                    string classFilename,
+--                    number classID
+--
+-- UnitSex(unit)   -> number sex  -- 1=unknown, 2=male, 3=female
+---------------------------------------------------------------------------
+
 Core.RegisterTracker({
   -- No events -- sampled once at t=0 only
 

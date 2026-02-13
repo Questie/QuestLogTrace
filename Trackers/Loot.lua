@@ -3,6 +3,29 @@ local Core = QuestLogTraceCore
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- GetNumLootItems() -> number numLootItems
+--
+-- GetLootSlotInfo(slot) -> string  lootIcon,
+--                          string  lootName,
+--                          number  lootQuantity,
+--                          number  currencyID,
+--                          number  lootQuality,
+--                          boolean locked,
+--                          boolean isQuestItem,
+--                          number  questID,
+--                          boolean isActive
+--
+-- GetLootSourceInfo(slot) -> string guid,
+--                            number quantity
+--
+-- GetLootSlotLink(index) -> string itemLink
+--
+-- GetLootSlotType(slotIndex) -> number slotType
+---------------------------------------------------------------------------
+
 ---@class LootSlotStreams
 ---@field info FunctionStreamEntry[]
 ---@field source FunctionStreamEntry[]
@@ -114,13 +137,13 @@ local function SampleLootClose(capture)
     countStream[#countStream + 1] = { t = t, tp = tp, v = 0 }
   end
 
-  -- All known slots -> nil
+  -- All known slots -> nil (skip if already nil)
   if lootSlotStreams then
     for _, streams in pairs(lootSlotStreams) do
-      streams.info[#streams.info + 1]     = { t = t, tp = tp, v = nil }
-      streams.source[#streams.source + 1] = { t = t, tp = tp, v = nil }
-      streams.link[#streams.link + 1]     = { t = t, tp = tp, v = nil }
-      streams.type[#streams.type + 1]     = { t = t, tp = tp, v = nil }
+      if streams.info[#streams.info]   and streams.info[#streams.info].v   ~= nil then streams.info[#streams.info + 1]     = { t = t, tp = tp, v = nil } end
+      if streams.source[#streams.source] and streams.source[#streams.source].v ~= nil then streams.source[#streams.source + 1] = { t = t, tp = tp, v = nil } end
+      if streams.link[#streams.link]   and streams.link[#streams.link].v   ~= nil then streams.link[#streams.link + 1]     = { t = t, tp = tp, v = nil } end
+      if streams.type[#streams.type]   and streams.type[#streams.type].v   ~= nil then streams.type[#streams.type + 1]     = { t = t, tp = tp, v = nil } end
     end
   end
 end

@@ -1,6 +1,14 @@
 ---@type QuestLogTraceCore
 local Core = QuestLogTraceCore
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- GetQuestsCompleted(table?) -> table questsCompleted  -- keyed by questID -> true
+--
+-- Stored as DeltaStream: initial set + add/remove deltas over time.
+---------------------------------------------------------------------------
+
 ---@type number[]
 local SAMPLE_DELAYS = { 0, 0.10, 0.35, 0.55, 0.75, 1.00 }
 

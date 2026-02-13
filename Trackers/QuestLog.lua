@@ -3,6 +3,43 @@ local Core = QuestLogTraceCore
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- GetQuestLogTitle(questLogIndex) -> string  title,
+--                                    number  level,
+--                                    number  suggestedGroup,
+--                                    boolean isHeader,
+--                                    boolean isCollapsed,
+--                                    number  isComplete,      -- 1=done, -1=failed, nil=in progress
+--                                    number  frequency,       -- 1=normal, 2=daily, 3=weekly
+--                                    number  questID,
+--                                    boolean startEvent,
+--                                    boolean displayQuestID,
+--                                    boolean isOnMap,
+--                                    boolean hasLocalPOI,
+--                                    boolean isTask,
+--                                    boolean isBounty,
+--                                    boolean isStory,
+--                                    boolean isHidden,
+--                                    boolean isScaling
+--
+-- GetQuestTagInfo(questID) -> number? tagID,
+--                             string? tagName,
+--                             number? worldQuestType,
+--                             number  rarity,
+--                             boolean isElite,
+--                             number  tradeskillLineIndex,
+--                             unknown displayTimeLeft
+--
+-- IsQuestComplete(questID)                   -> boolean isComplete
+-- C_QuestLog.IsQuestFlaggedCompleted(questID) -> boolean isCompleted
+-- C_QuestLog.GetQuestObjectives(questID)      -> QuestObjectiveInfo[] objectives
+-- GetQuestLogIndexByID(questID)               -> number questLogIndex
+--
+-- QuestLog (custom stream) -> number[] questIDs  -- array of active quest IDs
+---------------------------------------------------------------------------
+
 ---@type number[]
 local SAMPLE_DELAYS = { 0, 0.10, 0.35, 0.55, 0.75, 1.00 }
 

@@ -3,6 +3,31 @@ local Core = QuestLogTraceCore
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
 
+---------------------------------------------------------------------------
+-- WoW API return schemas (for trace analyzer display labels)
+---------------------------------------------------------------------------
+-- GetFactionInfoByID(factionID) -> string  name,
+--                                  string  description,
+--                                  number  standingID,      -- 4=Neutral, 5=Friendly, 6=Honored...
+--                                  number  barMin,
+--                                  number  barMax,
+--                                  number  barValue,
+--                                  boolean atWarWith,
+--                                  boolean canToggleAtWar,
+--                                  boolean isHeader,
+--                                  boolean isCollapsed,
+--                                  boolean hasRep,
+--                                  boolean isWatched,
+--                                  boolean isChild,
+--                                  number  factionID,
+--                                  boolean hasBonusRepGain,
+--                                  boolean canSetInactive
+--
+-- GetNumFactions() -> number numberOfFactions
+--
+-- FactionOrder (custom stream) -> number[] factionIDs  -- ordered known faction IDs
+---------------------------------------------------------------------------
+
 ---@type table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
 local functions       -- capture.session.functions
 ---@type number[]
