@@ -54,46 +54,44 @@ export function PositionPlot({ session, currentTime }: PositionPlotProps) {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Size canvas to container
+    // Size canvas to container with WoW map aspect ratio (3:2)
+    const MAP_ASPECT = 1.5;
     const rect = canvas.parentElement!.getBoundingClientRect();
-    const size = Math.min(rect.width - 20, rect.height - 60);
-    canvas.width = size;
-    canvas.height = size;
-
-    // Compute bounds with padding
-    let minX = Infinity, maxX = -Infinity;
-    let minY = Infinity, maxY = -Infinity;
-    for (const p of points) {
-      minX = Math.min(minX, p.x);
-      maxX = Math.max(maxX, p.x);
-      minY = Math.min(minY, p.y);
-      maxY = Math.max(maxY, p.y);
+    const maxW = rect.width - 20;
+    const maxH = rect.height - 60;
+    // Fit the 3:2 rectangle within available space
+    let w = maxW;
+    let h = w / MAP_ASPECT;
+    if (h > maxH) {
+      h = maxH;
+      w = h * MAP_ASPECT;
     }
-    const rangeX = maxX - minX || 0.01;
-    const rangeY = maxY - minY || 0.01;
+    canvas.width = w;
+    canvas.height = h;
+
+    // Fixed 0-1 bounds (WoW map coordinates are always 0-1)
     const pad = 30;
 
-    const toCanvasX = (x: number) => pad + ((x - minX) / rangeX) * (size - 2 * pad);
-    const toCanvasY = (y: number) => pad + ((y - minY) / rangeY) * (size - 2 * pad);
+    const toCanvasX = (x: number) => pad + x * (w - 2 * pad);
+    const toCanvasY = (y: number) => pad + y * (h - 2 * pad);
 
     // Clear
     ctx.fillStyle = "#1a1a2e";
-    ctx.fillRect(0, 0, size, size);
+    ctx.fillRect(0, 0, w, h);
 
-    // Draw grid
+    // Draw grid (lines at 0, 0.25, 0.50, 0.75, 1.0)
     ctx.strokeStyle = "#2a2a3e";
     ctx.lineWidth = 0.5;
     for (let i = 0; i <= 4; i++) {
-      const frac = i / 4;
-      const cx = pad + frac * (size - 2 * pad);
-      const cy = pad + frac * (size - 2 * pad);
+      const cx = toCanvasX(i / 4);
+      const cy = toCanvasY(i / 4);
       ctx.beginPath();
       ctx.moveTo(cx, pad);
-      ctx.lineTo(cx, size - pad);
+      ctx.lineTo(cx, h - pad);
       ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(pad, cy);
-      ctx.lineTo(size - pad, cy);
+      ctx.lineTo(w - pad, cy);
       ctx.stroke();
     }
 
@@ -140,11 +138,15 @@ export function PositionPlot({ session, currentTime }: PositionPlotProps) {
     ctx.fillStyle = "#666";
     ctx.font = "10px monospace";
     ctx.textAlign = "center";
-    ctx.fillText(`x: ${minX.toFixed(4)}`, pad, size - 5);
-    ctx.fillText(`x: ${maxX.toFixed(4)}`, size - pad, size - 5);
+    ctx.fillText("0", pad, h - 5);
+    ctx.fillText("1", w - pad, h - 5);
     ctx.textAlign = "left";
-    ctx.fillText(`y: ${minY.toFixed(4)}`, 2, pad - 5);
-    ctx.fillText(`y: ${maxY.toFixed(4)}`, 2, size - pad + 12);
+    ctx.fillText("0", 2, pad - 5);
+    ctx.fillText("1", 2, h - pad + 12);
+    ctx.textAlign = "center";
+    ctx.fillText("x", w / 2, h - 5);
+    ctx.textAlign = "left";
+    ctx.fillText("y", 2, h / 2);
 
     // Current coords overlay
     if (currentPos) {
@@ -153,7 +155,7 @@ export function PositionPlot({ session, currentTime }: PositionPlotProps) {
       ctx.textAlign = "right";
       ctx.fillText(
         `x: ${currentPos.x.toFixed(4)}, y: ${currentPos.y.toFixed(4)}`,
-        size - 5,
+        w - 5,
         15
       );
     }
