@@ -116,4 +116,11 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "classFilename", type: "string" },
     { name: "classID", type: "number" },
   ],
+
+  // -- UnitInteraction.lua -----------------------------------------------------
+
+  "UnitName": [
+    { name: "name", type: "string" },
+    { name: "realm", type: "string" },
+  ],
 };
