@@ -135,6 +135,18 @@ function Core.BuildControlFrame()
   status:SetWidth(230)
   status:SetText("Status: Idle")
 
+  local autoCheck = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") --[[@as CheckButton]]
+  autoCheck:SetSize(24, 24)
+  autoCheck:SetPoint("BOTTOMLEFT", 8, 6)
+  autoCheck:SetChecked(QuestLogTrace.settings.autoStart ~= false)
+  autoCheck:SetScript("OnClick", function(self)
+    QuestLogTrace.settings.autoStart = self:GetChecked()
+  end)
+
+  local autoLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  autoLabel:SetPoint("LEFT", autoCheck, "RIGHT", 2, 0)
+  autoLabel:SetText("Auto-start on login")
+
   frame.startButton = startButton
   frame.stopButton = stopButton
   frame.saveButton = saveButton
