@@ -13,6 +13,9 @@ local Core = QuestLogTraceCore
 --                    number classID
 --
 -- UnitSex(unit)   -> number sex  -- 1=unknown, 2=male, 3=female
+--
+-- UnitFactionGroup(unit) -> string englishFaction,  -- "Alliance"|"Horde"|"Neutral"
+--                           string localizedFaction
 ---------------------------------------------------------------------------
 
 Core.RegisterTracker({
@@ -28,6 +31,8 @@ Core.RegisterTracker({
     local classL, classE, classID = UnitClass("player")
     ---@type number
     local sex = UnitSex("player")
+    ---@type string, string
+    local factionE, factionL = UnitFactionGroup("player")
 
     functions["UnitRace"] = {
       ["player"] = { { t = 0, tp = 0, v = { raceL, raceE, raceID, n = 3 } } },
@@ -37,6 +42,9 @@ Core.RegisterTracker({
     }
     functions["UnitSex"] = {
       ["player"] = { { t = 0, tp = 0, v = sex } },
+    }
+    functions["UnitFactionGroup"] = {
+      ["player"] = { { t = 0, tp = 0, v = { factionE, factionL, n = 2 } } },
     }
   end,
 })

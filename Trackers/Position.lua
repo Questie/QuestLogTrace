@@ -2,6 +2,8 @@
 local Core = QuestLogTraceCore
 ---@type fun(num: number?, decimals: number?): number?
 local Round = Core.Round
+---@type fun(...): PackedArgs
+local PackArgs = Core.PackArgs
 
 ---------------------------------------------------------------------------
 -- WoW API return schemas (for trace analyzer display labels)
@@ -12,6 +14,20 @@ local Round = Core.Round
 --
 -- C_Map.GetBestMapForUnit(unit)              -> number? uiMapID
 -- C_Map.GetPlayerMapPosition(uiMapID, unit)  -> vector2? position  -- stored as {x, y}
+--
+-- IsInInstance()    -> boolean inInstance,
+--                      string  instanceType  -- "none"|"party"|"raid"|"pvp"|"arena"
+--
+-- GetInstanceInfo() -> string  name,
+--                      string  instanceType,
+--                      number  difficultyID,
+--                      string  difficultyName,
+--                      number  maxPlayers,
+--                      number  dynamicDifficulty,
+--                      boolean isDynamic,
+--                      number  instanceID,
+--                      number  instanceGroupSize,
+--                      number  LfgDungeonID
 ---------------------------------------------------------------------------
 
 ---@type number
@@ -24,6 +40,8 @@ local TIMER_INTERVAL = 0.20
 local streamZone, streamSubZone, streamRealZone
 ---@type FunctionStreamEntry[], FunctionStreamEntry[]
 local streamMapID, streamPosition
+---@type FunctionStreamEntry[], FunctionStreamEntry[]
+local streamInstance, streamInstanceInfo
 
 --- Sample all position-related data and append changed entries to streams.
 ---@param capture CaptureState
@@ -92,6 +110,19 @@ local function SampleAll(capture)
   if changed then
     streamPosition[#streamPosition + 1] = { t = t, tp = tp, v = posVal }
   end
+
+  -- Instance state (parameterless tuples)
+  ---@type PackedArgs
+  local instanceData = PackArgs(IsInInstance())
+  if not streamInstance[#streamInstance] or not DeepCompare(streamInstance[#streamInstance].v, instanceData) then
+    streamInstance[#streamInstance + 1] = { t = t, tp = tp, v = instanceData }
+  end
+
+  ---@type PackedArgs
+  local instanceInfo = PackArgs(GetInstanceInfo())
+  if not streamInstanceInfo[#streamInstanceInfo] or not DeepCompare(streamInstanceInfo[#streamInstanceInfo].v, instanceInfo) then
+    streamInstanceInfo[#streamInstanceInfo + 1] = { t = t, tp = tp, v = instanceInfo }
+  end
 end
 
 --- Schedule a repeating timer to sample position data.
@@ -151,12 +182,16 @@ Core.RegisterTracker({
     functions["GetRealZoneText"] = {}
     functions["C_Map.GetBestMapForUnit"]    = { ["player"] = {} }
     functions["C_Map.GetPlayerMapPosition"] = { ["player"] = {} }
+    functions["IsInInstance"]   = {}
+    functions["GetInstanceInfo"] = {}
 
     streamZone     = functions["GetZoneText"]
     streamSubZone  = functions["GetSubZoneText"]
     streamRealZone = functions["GetRealZoneText"]
     streamMapID    = functions["C_Map.GetBestMapForUnit"]["player"]
     streamPosition = functions["C_Map.GetPlayerMapPosition"]["player"]
+    streamInstance     = functions["IsInInstance"]
+    streamInstanceInfo = functions["GetInstanceInfo"]
 
     -- Initial sample at t=0
     SampleAll(capture)

@@ -24,6 +24,9 @@ local PackArgs = Core.PackArgs
 --                                    boolean isHidden,
 --                                    boolean isScaling
 --
+-- GetQuestLogQuestText(questLogIndex) -> string questDescription,
+--                                        string questObjectives
+--
 -- GetQuestTagInfo(questID) -> number? tagID,
 --                             string? tagName,
 --                             number? worldQuestType,
@@ -173,7 +176,7 @@ local function SampleQuestLog(capture)
       t, tp, objectives, questId, "C_QuestLog.GetQuestObjectives"
     )
 
-    -- GetQuestLogTitle -- tuple (needs questLogIndex lookup)
+    -- GetQuestLogTitle and GetQuestLogQuestText -- tuples (need questLogIndex lookup)
     ---@type number?
     local questLogIndex = GetQuestLogIndexByID(questId)
     if questLogIndex then
@@ -182,6 +185,14 @@ local function SampleQuestLog(capture)
       AppendIfChanged(
         GetOrCreateParamStream("GetQuestLogTitle", questId),
         t, tp, titleData, questId, "GetQuestLogTitle"
+      )
+
+      -- GetQuestLogQuestText -- tuple (n=2: questDescription, questObjectives)
+      ---@type PackedArgs
+      local questTextData = PackArgs(GetQuestLogQuestText(questLogIndex))
+      AppendIfChanged(
+        GetOrCreateParamStream("GetQuestLogQuestText", questId),
+        t, tp, questTextData, questId, "GetQuestLogQuestText"
       )
     end
 

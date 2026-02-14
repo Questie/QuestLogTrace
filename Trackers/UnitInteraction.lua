@@ -8,6 +8,9 @@ local PackArgs = Core.PackArgs
 ---------------------------------------------------------------------------
 -- UnitGUID(unit)  -> string guid (or nil)
 -- UnitName(unit)  -> string name, string realm (or nil when no unit)
+--
+-- C_GossipInfo.GetAvailableQuests() -> GossipQuestUIInfo[] (table)
+-- C_GossipInfo.GetActiveQuests()    -> GossipQuestUIInfo[] (table)
 ---------------------------------------------------------------------------
 
 ---@type string[]
@@ -18,6 +21,10 @@ local TOKENS = { "target", "npc", "questnpc" }
 local guidStreams
 ---@type table<string, FunctionStreamEntry[]>?
 local nameStreams
+---@type FunctionStreamEntry[]?
+local gossipAvailableStream
+---@type FunctionStreamEntry[]?
+local gossipActiveStream
 
 --- Sample all six streams (UnitGUID + UnitName for each token).
 ---@param t number Session-relative GetTime()
@@ -111,16 +118,46 @@ Core.RegisterTracker({
       nameStreams[token] = functions["UnitName"][token]
     end
 
+    -- Gossip streams (parameterless)
+    functions["C_GossipInfo.GetAvailableQuests"] = {}
+    functions["C_GossipInfo.GetActiveQuests"]    = {}
+    gossipAvailableStream = functions["C_GossipInfo.GetAvailableQuests"]
+    gossipActiveStream    = functions["C_GossipInfo.GetActiveQuests"]
+
     -- Initial sample at t=0
     SampleAll(0, 0)
   end,
 
   ---@param capture CaptureState
-  OnEvent = function(capture)
+  ---@param event string
+  OnEvent = function(capture, event)
     ---@type number
     local t  = GetTime()          - capture.startedAt
     ---@type number
     local tp = GetTimePreciseSec() - capture.startedAtPrecise
     SampleAll(t, tp)
+
+    -- Gossip functions only return valid data when the gossip window is open
+    if event == "GOSSIP_SHOW" and gossipAvailableStream and gossipActiveStream then
+      if C_GossipInfo and C_GossipInfo.GetAvailableQuests then
+        ---@type table
+        local available = C_GossipInfo.GetAvailableQuests()
+        ---@type FunctionStreamEntry?
+        local prev = gossipAvailableStream[#gossipAvailableStream]
+        if not prev or not DeepCompare(prev.v, available) then
+          gossipAvailableStream[#gossipAvailableStream + 1] = { t = t, tp = tp, v = available }
+        end
+      end
+
+      if C_GossipInfo and C_GossipInfo.GetActiveQuests then
+        ---@type table
+        local active = C_GossipInfo.GetActiveQuests()
+        ---@type FunctionStreamEntry?
+        local prev = gossipActiveStream[#gossipActiveStream]
+        if not prev or not DeepCompare(prev.v, active) then
+          gossipActiveStream[#gossipActiveStream + 1] = { t = t, tp = tp, v = active }
+        end
+      end
+    end
   end,
 })
