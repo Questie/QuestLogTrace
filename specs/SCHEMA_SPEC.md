@@ -226,7 +226,14 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `GetZoneText` | scalar (string) | |
 | `GetSubZoneText` | scalar (string) | |
 | `GetRealZoneText` | scalar (string) | |
+| `IsInInstance` | tuple (n=2) | inInstance, instanceType |
+| `GetInstanceInfo` | tuple (n=10) | name, instanceType, difficultyID, ... |
 | `GetNumLootItems` | scalar (number) | 0 when no loot window |
+| `IsInGroup` | scalar (boolean) | |
+| `GetNumGroupMembers` | scalar (number) | 0 when not in a group |
+| `GetQuestGreenRange` | scalar (number) | XP threshold; changes with player level |
+| `C_GossipInfo.GetAvailableQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
+| `C_GossipInfo.GetActiveQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
 | `QuestLog` | object (number[]) | *(synthetic)* Computed by iterating GetQuestLogTitle, not a WoW API function |
 | `FactionOrder` | object (number[]) | *(synthetic)* Computed by iterating GetFactionInfo and expanding headers, not a WoW API function |
 
@@ -238,6 +245,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `UnitRace` | tuple (n=3) | localizedName, englishName, raceID |
 | `UnitClass` | tuple (n=3) | localizedName, englishName, classID |
 | `UnitSex` | scalar (number) | |
+| `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar (number) | map ID |
 | `C_Map.GetPlayerMapPosition` | object ({x, y}) | rounded to 4 decimals |
 
@@ -249,6 +257,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean) | |
 | `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]) | |
 | `GetQuestLogTitle` | tuple (n=17) | |
+| `GetQuestLogQuestText` | tuple (n=2) | questDescription, questObjectives |
 | `GetQuestTagInfo` | tuple (n varies) | |
 
 ### Parameterized by unit token (`"target"`, `"npc"`, `"questnpc"`)

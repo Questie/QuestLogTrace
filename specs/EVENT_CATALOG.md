@@ -133,6 +133,16 @@ Triggers `UnitGUID` and `UnitName` sampling for `"target"`, `"npc"`, and
 - `PLAYER_ENTERING_WORLD`
 - `SPELLS_CHANGED`
 
+### GroupState tracker
+
+Triggers `IsInGroup` and `GetNumGroupMembers` sampling.
+
+- `GROUP_JOINED`
+- `GROUP_LEFT`
+- `GROUP_ROSTER_UPDATE`
+- `PLAYER_ENTERING_WORLD` *(login-time sampling)*
+- `SPELLS_CHANGED` *(login-time sampling)*
+
 ### PlayerIdentity tracker
 
 No events. Sampled once at capture start (`t=0`).
@@ -149,6 +159,7 @@ filtered so only the addon's own load event is recorded in the stream.
 - `ADDON_LOADED` (filtered: only recorded when `addonName == "QuestLogTrace"`)
 - `PLAYER_LOGOUT`
 - `PLAYER_LEAVING_WORLD`
+- `LOADING_SCREEN_DISABLED`
 
 These events are captured in the event stream for replay/analysis but
 do not trigger any tracker sampling.
@@ -165,6 +176,7 @@ to trackers for login-time data sampling (see tracker sections above).
 - `PLAYER_EQUIPMENT_CHANGED`
 - `NEW_RECIPE_LEARNED`
 - `UI_INFO_MESSAGE`
+- `CURRENCY_DISPLAY_UPDATE`
 
 ### Map/zone (not used by position tracker)
 
@@ -184,6 +196,7 @@ to trackers for login-time data sampling (see tracker sections above).
 
 - `GROUP_JOINED`
 - `GROUP_LEFT`
+- `GROUP_ROSTER_UPDATE`
 - `NAME_PLATE_UNIT_ADDED`
 - `NAME_PLATE_UNIT_REMOVED`
 - `ACHIEVEMENT_EARNED`
@@ -193,8 +206,6 @@ to trackers for login-time data sampling (see tracker sections above).
 
 ### Inventory
 
-- `BAG_UPDATE`
-- `BAG_UPDATE_DELAYED`
 - `ITEM_PUSH`
 - `ITEM_LOCK_CHANGED`
 - `ITEM_COUNT_CHANGED`
