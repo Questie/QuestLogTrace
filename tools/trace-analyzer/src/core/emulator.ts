@@ -229,6 +229,7 @@ const INIT_EVENTS = new Set([
   "PLAYER_LOGOUT",
   "PLAYER_LEAVING_WORLD",
   "SPELLS_CHANGED",
+  "LOADING_SCREEN_DISABLED",
 ]);
 
 export function categorizeEvent(name: string): EventCategory {

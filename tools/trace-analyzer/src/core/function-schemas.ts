@@ -72,6 +72,11 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "isScaling", type: "boolean" },
   ],
 
+  "GetQuestLogQuestText": [
+    { name: "questDescription", type: "string" },
+    { name: "questObjectives", type: "string" },
+  ],
+
   "GetQuestTagInfo": [
     { name: "tagID", type: "number" },
     { name: "tagName", type: "string" },
@@ -103,6 +108,26 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "canSetInactive", type: "boolean" },
   ],
 
+  // -- Position.lua --------------------------------------------------------------
+
+  "IsInInstance": [
+    { name: "inInstance", type: "boolean" },
+    { name: "instanceType", type: "string" },    // "none"|"party"|"raid"|"pvp"|"arena"
+  ],
+
+  "GetInstanceInfo": [
+    { name: "name", type: "string" },
+    { name: "instanceType", type: "string" },
+    { name: "difficultyID", type: "number" },
+    { name: "difficultyName", type: "string" },
+    { name: "maxPlayers", type: "number" },
+    { name: "dynamicDifficulty", type: "number" },
+    { name: "isDynamic", type: "boolean" },
+    { name: "instanceID", type: "number" },
+    { name: "instanceGroupSize", type: "number" },
+    { name: "LfgDungeonID", type: "number" },
+  ],
+
   // -- PlayerIdentity.lua -----------------------------------------------------
 
   "UnitRace": [
@@ -115,6 +140,11 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "className", type: "string" },
     { name: "classFilename", type: "string" },
     { name: "classID", type: "number" },
+  ],
+
+  "UnitFactionGroup": [
+    { name: "englishFaction", type: "string" },   // "Alliance"|"Horde"|"Neutral"
+    { name: "localizedFaction", type: "string" },
   ],
 
   // -- UnitInteraction.lua -----------------------------------------------------
