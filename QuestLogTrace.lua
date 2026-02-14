@@ -98,6 +98,7 @@ local TRACKED_EVENT_CATEGORIES = {
       "SPELLS_CHANGED",
       "PLAYER_LOGOUT",
       "PLAYER_LEAVING_WORLD",
+      "LOADING_SCREEN_DISABLED",
     },
   },
   {
@@ -117,6 +118,7 @@ local TRACKED_EVENT_CATEGORIES = {
       "LOOT_CLOSED",
       "NEW_RECIPE_LEARNED",
       "UI_INFO_MESSAGE",
+      "CURRENCY_DISPLAY_UPDATE",
     },
   },
   {
@@ -150,6 +152,7 @@ local TRACKED_EVENT_CATEGORIES = {
     events = {
       "GROUP_JOINED",
       "GROUP_LEFT",
+      "GROUP_ROSTER_UPDATE",
       "NAME_PLATE_UNIT_ADDED",
       "NAME_PLATE_UNIT_REMOVED",
       "ACHIEVEMENT_EARNED",
