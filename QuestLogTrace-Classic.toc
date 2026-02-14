@@ -18,6 +18,7 @@ Trackers/Reputation.lua
 Trackers/QuestLog.lua
 Trackers/CompletedQuests.lua
 Trackers/UnitInteraction.lua
+Trackers/GroupState.lua
 
 QuestLogTrace_UI.lua
 QuestLogTrace.lua
