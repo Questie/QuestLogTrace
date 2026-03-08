@@ -18,6 +18,7 @@ Trackers/Loot.lua             -- Loot window capture
 Trackers/Reputation.lua       -- Faction reputation
 Trackers/QuestLog.lua         -- Quest log membership + per-quest functions
 Trackers/CompletedQuests.lua  -- GetQuestsCompleted delta stream
+Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
 QuestLogTrace_UI.lua          -- Control frame UI
 QuestLogTrace.lua             -- Entry point: session lifecycle, event bus
 ```
@@ -29,10 +30,13 @@ QuestLogTrace.lua             -- Entry point: session lifecycle, event bus
 2. All tracker files run next. Each calls `Core.RegisterTracker` at file
    scope (not in a callback), building the `_trackerCallbacks` lookup
    table before the event frame exists.
-3. `QuestLogTrace_UI.lua` defines `Core.BuildControlFrame` and
+3. Dump files run after trackers. Each calls `Core.RegisterDump` at file
+   scope, building dump event/slash routing tables before the event frame
+   and slash command handler execute.
+4. `QuestLogTrace_UI.lua` defines `Core.BuildControlFrame` and
    `Core.UpdateControlFrameStatus`. These are nil-checked by the main
    file, so the UI is optional.
-4. `QuestLogTrace.lua` runs last. It creates the event frame, registers
+5. `QuestLogTrace.lua` runs last. It creates the event frame, registers
    all events, and sets up the `VARIABLES_LOADED` bootstrap handler.
 
 ---

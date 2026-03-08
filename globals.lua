@@ -69,6 +69,13 @@ C_After = C_Timer.After
 ---@field OnEvent fun(capture: CaptureState, event: string, ...)?
 ---@field OnCaptureStopped fun(capture: CaptureState)?
 
+---@class DumpDef
+---@field key string
+---@field helpText string?
+---@field slashCommands string[]?
+---@field events string[]?
+---@field Run fun(event: string?, ...): (boolean?, string?)
+
 ---@class StatusData
 ---@field captureState "running"|"stopped_unsaved"|"idle"
 ---@field isRunning boolean
@@ -79,6 +86,33 @@ C_After = C_Timer.After
 ---@class EventCategory
 ---@field name string
 ---@field events string[]
+
+---@class MapRectData
+---@field minX number
+---@field maxX number
+---@field minY number
+---@field maxY number
+
+---@class QuestLogTraceMapEntry
+---@field name string
+---@field parentMapID number
+---@field mapType number
+---@field children number[]
+---@field rect MapRectData?
+
+---@class MapHierarchyDumpData
+---@field schemaVersion number
+---@field capturedAt string
+---@field fallbackWorldMapID number
+---@field rootSeeds number[]
+---@field topUiMapIDs number[]
+---@field mapsWithChildren number[]
+---@field maps table<number, QuestLogTraceMapEntry>
+---@field rectOnMap table<number, table<number, MapRectData>>
+
+---@class QuestLogTraceDumpsData
+---@field schemaVersion number
+---@field dumps table<string, any>
 
 --? Execute the next frame
 --! Be careful with this because the order of defered functions is not guaranteed
@@ -201,6 +235,96 @@ function Core.RegisterTracker(tracker)
       cbs[#cbs + 1] = tracker.OnEvent
     end
   end
+end
+
+---------------------------------------------------------------------------
+-- Dump registration
+---------------------------------------------------------------------------
+
+---@type DumpDef[]
+Core._dumps = {}
+---@type table<string, DumpDef>
+Core._dumpsBySlash = {}
+---@type table<string, DumpDef[]>
+Core._dumpCallbacks = {}
+
+--- Register a dump provider with optional slash command and event triggers.
+---@param dump DumpDef
+function Core.RegisterDump(dump)
+  if type(dump) ~= "table" or type(dump.key) ~= "string" or type(dump.Run) ~= "function" then
+    return
+  end
+
+  Core._dumps[#Core._dumps + 1] = dump
+
+  if type(dump.slashCommands) == "table" then
+    for i = 1, #dump.slashCommands do
+      local slash = string.lower(tostring(dump.slashCommands[i] or ""))
+      if slash ~= "" then
+        Core._dumpsBySlash[slash] = dump
+      end
+    end
+  end
+
+  if type(dump.events) == "table" then
+    for i = 1, #dump.events do
+      local event = dump.events[i]
+      if type(event) == "string" and event ~= "" then
+        if not Core._dumpCallbacks[event] then
+          Core._dumpCallbacks[event] = {}
+        end
+        local callbacks = Core._dumpCallbacks[event]
+        callbacks[#callbacks + 1] = dump
+      end
+    end
+  end
+end
+
+--- Run dumps registered for a specific event.
+---@param event string
+---@param ... any
+function Core.RunDumpsForEvent(event, ...)
+  local callbacks = Core._dumpCallbacks[event]
+  if not callbacks then return end
+  for i = 1, #callbacks do
+    local dump = callbacks[i]
+    local ok, err = pcall(dump.Run, event, ...)
+    if not ok then
+      print("QuestLogTrace", "Dump failed:", dump.key, err)
+    elseif err then
+      print("QuestLogTrace", "Dump warning:", dump.key, err)
+    end
+  end
+end
+
+--- Run a dump via slash command.
+---@param action string
+---@param ... any
+---@return boolean handled
+function Core.RunDumpBySlash(action, ...)
+  local dump = Core._dumpsBySlash[string.lower(action or "")]
+  if not dump then return false end
+  local ok, err = pcall(dump.Run, "SLASH", ...)
+  if not ok then
+    print("QuestLogTrace", "Dump failed:", dump.key, err)
+  elseif err then
+    print("QuestLogTrace", "Dump warning:", dump.key, err)
+  end
+  return true
+end
+
+--- Get additional help lines from registered dump providers.
+---@return string[] lines
+function Core.GetDumpHelpLines()
+  local lines = {}
+  for i = 1, #Core._dumps do
+    local help = Core._dumps[i].helpText
+    if type(help) == "string" and help ~= "" then
+      lines[#lines + 1] = help
+    end
+  end
+  table.sort(lines)
+  return lines
 end
 
 ---------------------------------------------------------------------------

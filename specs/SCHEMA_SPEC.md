@@ -14,6 +14,17 @@ QuestLogTrace = {
 }
 ```
 
+### `QuestLogTraceDumps` (account-level)
+
+```lua
+QuestLogTraceDumps = {
+  schemaVersion = 1,
+  dumps = {
+    map_hierarchy = MapHierarchyDumpData,
+  },
+}
+```
+
 ### `QuestLogTraceCharacter` (per-character)
 
 ```lua

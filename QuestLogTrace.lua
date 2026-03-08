@@ -251,6 +251,16 @@ local function EnsureSavedVariables()
     QuestLogTrace.settings.autoStart = true
   end
 
+  if type(QuestLogTraceDumps) ~= "table" then
+    QuestLogTraceDumps = {
+      schemaVersion = 1,
+      dumps = {},
+    }
+  end
+  if type(QuestLogTraceDumps.dumps) ~= "table" then
+    QuestLogTraceDumps.dumps = {}
+  end
+
   QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
   QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
 end
@@ -474,6 +484,12 @@ local function PrintHelp()
   print("/qlt reset - Discard unsaved capture")
   print("/qlt status - Show capture status")
   print("/qlt auto - Toggle auto-start on login")
+  if Core.GetDumpHelpLines then
+    local dumpHelpLines = Core.GetDumpHelpLines()
+    for i = 1, #dumpHelpLines do
+      print(dumpHelpLines[i])
+    end
+  end
   print("/qlt ui - Toggle control frame")
 end
 
@@ -498,6 +514,8 @@ SlashCmdList["QUESTLOGTRACE"] = function(msg)
   elseif action == "auto" then
     QuestLogTrace.settings.autoStart = not QuestLogTrace.settings.autoStart
     print(ADDON_NAME, "Auto-start on login:", QuestLogTrace.settings.autoStart and "enabled" or "disabled")
+  elseif Core.RunDumpBySlash and Core.RunDumpBySlash(action, argument) then
+    -- handled by dump provider
   elseif action == "ui" then
     if Core.ToggleControlFrame then
       Core.ToggleControlFrame()
@@ -536,13 +554,18 @@ local function OnEvent(_, event, ...)
   local filter = EVENT_FILTERS[event]
   if filter and not filter(...) then return end
 
-  -- 3. Auto-start on PLAYER_LOGIN
+  -- 3. Dump providers + auto-start on PLAYER_LOGIN
   --    StartCapture BEFORE ProcessTrackedEvent so PLAYER_LOGIN
   --    is recorded as the first event in the session.
-  if event == "PLAYER_LOGIN" and not capture.active then
-    local settings = QuestLogTrace and QuestLogTrace.settings
-    if settings and settings.autoStart ~= false then
-      Core.StartCapture()
+  if Core.RunDumpsForEvent then
+    Core.RunDumpsForEvent(event, ...)
+  end
+  if event == "PLAYER_LOGIN" then
+    if not capture.active then
+      local settings = QuestLogTrace and QuestLogTrace.settings
+      if settings and settings.autoStart ~= false then
+        Core.StartCapture()
+      end
     end
   end
 

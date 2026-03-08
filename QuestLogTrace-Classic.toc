@@ -5,7 +5,7 @@
 ## Version: 2
 ## RequiredDeps:
 ## OptionalDeps:
-## SavedVariables: QuestLogTrace
+## SavedVariables: QuestLogTrace, QuestLogTraceDumps
 ## SavedVariablesPerCharacter: QuestLogTraceCharacter
 
 globals.lua
@@ -19,6 +19,9 @@ Trackers/QuestLog.lua
 Trackers/CompletedQuests.lua
 Trackers/UnitInteraction.lua
 Trackers/GroupState.lua
+Trackers/SpellBook.lua
+
+Dumps/MapHierarchy.lua
 
 QuestLogTrace_UI.lua
 QuestLogTrace.lua
