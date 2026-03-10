@@ -1,4 +1,4 @@
-# Function Emulation Spec (v8)
+# Function Emulation Spec (v9)
 
 How to reconstruct WoW API function outputs at a target time `t` from
 QuestLogTrace saved data.
@@ -79,6 +79,13 @@ Every function maps directly to `session.functions[key]` or
 | `GetLootSlotLink(slot)` | `functions["GetLootSlotLink"][slot]` |
 | `GetLootSlotType(slot)` | `functions["GetLootSlotType"][slot]` |
 | `GetFactionInfoByID(factionID)` | `functions["GetFactionInfoByID"][factionID]` |
+| `GetNumSkillLines()` | `functions["GetNumSkillLines"]` |
+| `GetSkillLineInfo(index)` | `functions["GetSkillLineInfo"][index]` |
+| `GetProfessions()` | `functions["GetProfessions"]` |
+| `GetProfessionInfo(index)` | `functions["GetProfessionInfo"][index]` |
+| `GetSpellBookItemName(slot)` | `functions["GetSpellBookItemName"][slot]` |
+| `GetSpellBookItemInfo(slot)` | `functions["GetSpellBookItemInfo"][slot]` |
+| `IsPassiveSpell(slot)` | `functions["IsPassiveSpell"][slot]` |
 
 ### Derived functions
 
@@ -92,11 +99,11 @@ These are not stored directly but reconstructed from other streams:
 
 ## 4) Delta stream replay
 
-`GetQuestsCompleted` lives in `functionsDelta`:
+`GetQuestsCompleted` and `PlayerKnownSpells` live in `functionsDelta`:
 
 ```lua
-function getCompletedQuests(session, target_t)
-  local data = session.functionsDelta["GetQuestsCompleted"]
+function getDeltaSet(session, key, target_t)
+  local data = session.functionsDelta[key]
   local set = {}
   for _, id in ipairs(data.initial) do
     set[id] = true
@@ -112,6 +119,13 @@ function getCompletedQuests(session, target_t)
   end
   return set
 end
+```
+
+Examples:
+
+```lua
+local completed = getDeltaSet(session, "GetQuestsCompleted", t)
+local knownSpells = getDeltaSet(session, "PlayerKnownSpells", t)
 ```
 
 ## 5) Event replay
@@ -134,3 +148,6 @@ end
   that time (e.g. loot window closed). The emulator should return nil,
   not treat it as "no data".
 - Position XY is rounded to 4 decimal places.
+- Skill line IDs are not normalized during capture. Consumers must join
+  `GetSkillLineInfo(index)` with external lookup data if they need stable
+  numeric skill IDs beyond what `GetProfessionInfo(index)` exposes.

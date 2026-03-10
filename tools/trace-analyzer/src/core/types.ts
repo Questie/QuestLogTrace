@@ -1,5 +1,5 @@
 // ============================================================
-// TypeScript types matching SCHEMA_SPEC v8
+// TypeScript types matching SCHEMA_SPEC v9
 // ============================================================
 
 /**

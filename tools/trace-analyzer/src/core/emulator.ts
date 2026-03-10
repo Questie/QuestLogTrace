@@ -145,13 +145,14 @@ export function isPackedArgs(v: unknown): v is PackedArgs {
 }
 
 /**
- * Replay delta stream to get the set at target time.
+ * Replay a delta stream to get the set at target time.
  */
-export function getCompletedQuests(
+export function getDeltaSetAt(
   session: SessionRecord,
+  key: string,
   targetT: number
 ): Set<number> {
-  const data = session.functionsDelta["GetQuestsCompleted"];
+  const data = session.functionsDelta[key];
   if (!data) return new Set();
 
   const set = new Set<number>(data.initial);
@@ -167,6 +168,26 @@ export function getCompletedQuests(
   }
 
   return set;
+}
+
+/**
+ * Replay GetQuestsCompleted to get the quest-completed set at target time.
+ */
+export function getCompletedQuests(
+  session: SessionRecord,
+  targetT: number
+): Set<number> {
+  return getDeltaSetAt(session, "GetQuestsCompleted", targetT);
+}
+
+/**
+ * Replay PlayerKnownSpells to get the known spell set at target time.
+ */
+export function getPlayerKnownSpells(
+  session: SessionRecord,
+  targetT: number
+): Set<number> {
+  return getDeltaSetAt(session, "PlayerKnownSpells", targetT);
 }
 
 /**

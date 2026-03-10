@@ -1,4 +1,4 @@
-# Architecture Spec (v8)
+# Architecture Spec (v9)
 
 File structure, load order, bootstrap sequence, and SavedVariables
 management for QuestLogTrace.
@@ -18,6 +18,9 @@ Trackers/Loot.lua             -- Loot window capture
 Trackers/Reputation.lua       -- Faction reputation
 Trackers/QuestLog.lua         -- Quest log membership + per-quest functions
 Trackers/CompletedQuests.lua  -- GetQuestsCompleted delta stream
+Trackers/GroupState.lua       -- IsInGroup, GetNumGroupMembers
+Trackers/SkillLines.lua       -- Skill window + profession tabs
+Trackers/SpellBook.lua        -- Raw spellbook slots + PlayerKnownSpells
 Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
 QuestLogTrace_UI.lua          -- Control frame UI
 QuestLogTrace.lua             -- Entry point: session lifecycle, event bus
@@ -67,8 +70,9 @@ if not ok then
 end
 ```
 
-The event categories (quest_state, quest_dialog, player_state, map_zone,
-chat_system, group_world, inventory) are organizational — they define
+The event categories (quest_state, quest_dialog, npc_interaction,
+initialization, player_state, map_zone, chat_system, group_world,
+inventory) are organizational — they define
 the full set of events the addon captures. Tracker routing is handled
 separately by `Core._trackerCallbacks`.
 
@@ -80,7 +84,7 @@ separately by `Core._trackerCallbacks`.
 
 ```lua
 QuestLogTrace = {
-  schemaVersion = 8,
+  schemaVersion = 9,
   settings = {
     maxSessions = 20,
   },
@@ -100,14 +104,14 @@ QuestLogTraceCharacter = {
 
 On `VARIABLES_LOADED`, `EnsureSavedVariables` checks the stored schema:
 
-- If `QuestLogTrace` is not a table or `schemaVersion ~= 8`, the entire
+- If `QuestLogTrace` is not a table or `schemaVersion ~= 9`, the entire
   account-level table is **wiped and recreated** with defaults.
 - If `QuestLogTraceCharacter` is not a table, it is reset to `{}`.
 - The `sessions` array is ensured to exist.
 - `lastSavedSession` is NOT initialized on migration — it is only set
   when the user explicitly saves a session.
 
-There is no incremental migration from v7 to v8. Upgrading resets all
+There is no incremental migration from v8 to v9. Upgrading resets all
 stored data.
 
 ---

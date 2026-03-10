@@ -19,6 +19,7 @@ Trackers/QuestLog.lua
 Trackers/CompletedQuests.lua
 Trackers/UnitInteraction.lua
 Trackers/GroupState.lua
+Trackers/SkillLines.lua
 Trackers/SpellBook.lua
 
 Dumps/MapHierarchy.lua

@@ -6,247 +6,241 @@ local PackArgs = Core.PackArgs
 ---------------------------------------------------------------------------
 -- WoW API return schemas (for trace analyzer display labels)
 ---------------------------------------------------------------------------
--- GetSpellBookItemName(slot, "spell") -> string name,
---                                        string subName,
+-- GetSpellBookItemName(slot, "spell") -> string spellName,
+--                                        string spellSubName,
 --                                        number spellID
 --
--- GetSpellBookItemInfo(slot, "spell") -> string spellType,  -- "SPELL", "FUTURESPELL", "PETACTION"
+-- GetSpellBookItemInfo(slot, "spell") -> string spellType,
 --                                        number id
 --
 -- IsPassiveSpell(slot, "spell") -> 1|nil isPassive
 --
--- C_SpellBook.IsSpellKnown(spellID)             -> boolean isKnown
--- C_SpellBook.IsSpellInSpellBook(spellID)        -> boolean isInSpellBook
--- C_SpellBook.IsSpellKnownOrInSpellBook(spellID) -> boolean isKnownOrInSpellBook
---
 -- SpellBook (custom stream) -> number[] spellIDs  -- ordered known spell IDs
+--
+-- PlayerKnownSpells (delta stream) -> set<number> spellIDs
 ---------------------------------------------------------------------------
 
----@type table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
-local functions       -- capture.session.functions
----@type number[]
-local spellOrder      -- ordered array of discovered spellIDs
----@type table<number, PackedArgs>
-local prevName        -- [spellID] -> last PackedArgs(name, subName)
----@type table<number, PackedArgs>
-local prevInfo        -- [spellID] -> last PackedArgs(spellType, id)
----@type table<number, boolean>
-local prevPassive     -- [spellID] -> last isPassive
----@type table<number, boolean>
-local prevKnown       -- [spellID] -> last C_SpellBook.IsSpellKnown
----@type table<number, boolean>
-local prevInBook      -- [spellID] -> last C_SpellBook.IsSpellInSpellBook
----@type table<number, boolean>
-local prevKnownOrIn   -- [spellID] -> last C_SpellBook.IsSpellKnownOrInSpellBook
+---@type string
+local BOOK_TYPE = "spell"
 
---- Discover all spellIDs by iterating all spellbook tabs.
----@return number[] ids Ordered array of spellIDs
-local function CollectSpellIDs()
-  if type(GetNumSpellTabs) ~= "function" or type(GetSpellTabInfo) ~= "function"
-    or type(GetSpellBookItemName) ~= "function" then
-    return {}
+---@type table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
+local functions
+---@type table<string, DeltaStream>
+local functionsDelta
+---@type table<number, PackedArgs?>
+local prevName
+---@type table<number, PackedArgs?>
+local prevInfo
+---@type table<number, number?>
+local prevPassive
+---@type table<number, boolean>
+local knownSlots
+---@type table<number, boolean>
+local currentKnownSpells
+
+--- Append a parameterized packed value only when it changed.
+---@param funcName string
+---@param key number
+---@param prev table<number, PackedArgs?>
+---@param t number
+---@param tp number
+---@param value PackedArgs?
+local function AppendPackedIfChanged(funcName, key, prev, t, tp, value)
+  local old = prev[key]
+  local changed = false
+
+  if old == nil and value == nil then
+    changed = functions[funcName][key] == nil or #functions[funcName][key] == 0
+  elseif old == nil or value == nil then
+    changed = true
+  else
+    changed = not DeepCompare(old, value)
   end
 
-  ---@type number[]
-  local ids = {}
-  ---@type number
-  local numTabs = GetNumSpellTabs() or 0
+  if not changed then return end
 
-  for tab = 1, numTabs do
-    local _, _, offset, numSlots = GetSpellTabInfo(tab)
-    if offset and numSlots then
-      for i = 1, numSlots do
-        ---@type number
-        local slot = offset + i
-        local _, _, spellID = GetSpellBookItemName(slot, "spell")
-        if spellID then
-          ids[#ids + 1] = spellID
-        end
-      end
+  local stream = functions[funcName][key]
+  if not stream then
+    stream = {}
+    functions[funcName][key] = stream
+  end
+  stream[#stream + 1] = { t = t, tp = tp, v = value }
+  prev[key] = value
+end
+
+--- Append a parameterized scalar only when it changed.
+---@param funcName string
+---@param key number
+---@param prev table<number, number?>
+---@param t number
+---@param tp number
+---@param value number?
+local function AppendScalarIfChanged(funcName, key, prev, t, tp, value)
+  local old = prev[key]
+  local stream = functions[funcName][key]
+  local hasEntries = stream ~= nil and #stream > 0
+  if old == value and hasEntries then return end
+
+  if not stream then
+    stream = {}
+    functions[funcName][key] = stream
+  end
+  stream[#stream + 1] = { t = t, tp = tp, v = value }
+  prev[key] = value
+end
+
+--- Append the ordered spell list when it changed.
+---@param t number
+---@param tp number
+---@param ids number[]
+local function AppendSpellBookIfChanged(t, tp, ids)
+  local stream = functions["SpellBook"]
+  local prev = stream[#stream]
+  if not prev or not DeepCompare(prev.v, ids) then
+    local copy = {}
+    for i = 1, #ids do
+      copy[i] = ids[i]
+    end
+    stream[#stream + 1] = { t = t, tp = tp, v = copy }
+  end
+end
+
+--- Diff and append PlayerKnownSpells delta entries.
+---@param capture CaptureState
+---@param newSet table<number, boolean>
+local function AppendKnownSpellDelta(capture, newSet)
+  local added, removed = {}, {}
+  for spellID in pairs(newSet) do
+    if not currentKnownSpells[spellID] then
+      added[#added + 1] = spellID
+    end
+  end
+  for spellID in pairs(currentKnownSpells) do
+    if not newSet[spellID] then
+      removed[#removed + 1] = spellID
     end
   end
 
-  return ids
+  if #added > 0 or #removed > 0 then
+    table.sort(added)
+    table.sort(removed)
+
+    local delta = {
+      t = GetTime() - capture.startedAt,
+      tp = GetTimePreciseSec() - capture.startedAtPrecise,
+    }
+    if #added > 0 then delta.add = added end
+    if #removed > 0 then delta.remove = removed end
+
+    functionsDelta["PlayerKnownSpells"].delta[#functionsDelta["PlayerKnownSpells"].delta + 1] = delta
+  end
+
+  currentKnownSpells = newSet
 end
 
---- Sample all per-spell functions. Appends {t,tp,v} only when value changed.
+--- Enumerate the entire player spellbook, including profession tabs.
 ---@param capture CaptureState
-local function SampleSpells(capture)
-  ---@type number
-  local t  = GetTime()          - capture.startedAt
-  ---@type number
+local function SampleSpellBook(capture)
+  local t = GetTime() - capture.startedAt
   local tp = GetTimePreciseSec() - capture.startedAtPrecise
 
-  for i = 1, #spellOrder do
-    ---@type number
-    local spellID = spellOrder[i]
+  local seenSlots = {}
+  local orderedSpellIDs = {}
+  local seenSpellIDs = {}
+  local newKnownSpells = {}
 
-    -- GetSpellBookItemName
-    if type(GetSpellBookItemName) == "function" then
-      ---@type PackedArgs
-      local v = PackArgs(GetSpellBookItemName(spellID))
-      ---@type PackedArgs?
-      local prev = prevName[spellID]
-      if not prev or not DeepCompare(v, prev) then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["GetSpellBookItemName"][spellID]
-        if not stream then
-          stream = {}
-          functions["GetSpellBookItemName"][spellID] = stream
-        end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevName[spellID] = v
+  if type(GetSpellBookItemName) == "function" then
+    local slot = 1
+    while true do
+      local spellName, spellSubName, spellID = GetSpellBookItemName(slot, BOOK_TYPE)
+      if spellName == nil then break end
+
+      seenSlots[slot] = true
+      knownSlots[slot] = true
+
+      local nameValue = { spellName, spellSubName, spellID, n = 3 }
+      AppendPackedIfChanged("GetSpellBookItemName", slot, prevName, t, tp, nameValue)
+
+      if type(GetSpellBookItemInfo) == "function" then
+        local infoValue = PackArgs(GetSpellBookItemInfo(slot, BOOK_TYPE))
+        AppendPackedIfChanged("GetSpellBookItemInfo", slot, prevInfo, t, tp, infoValue)
       end
-    end
 
-    -- GetSpellBookItemInfo
-    if type(GetSpellBookItemInfo) == "function" then
-      ---@type PackedArgs
-      local v = PackArgs(GetSpellBookItemInfo(spellID))
-      ---@type PackedArgs?
-      local prev = prevInfo[spellID]
-      if not prev or not DeepCompare(v, prev) then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["GetSpellBookItemInfo"][spellID]
-        if not stream then
-          stream = {}
-          functions["GetSpellBookItemInfo"][spellID] = stream
-        end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevInfo[spellID] = v
+      if type(IsPassiveSpell) == "function" then
+        local passiveValue = IsPassiveSpell(slot, BOOK_TYPE)
+        AppendScalarIfChanged("IsPassiveSpell", slot, prevPassive, t, tp, passiveValue)
       end
-    end
 
-    -- IsPassiveSpell
-    if type(IsPassiveSpell) == "function" then
-      ---@type boolean
-      local v = IsPassiveSpell(spellID) == 1
-      ---@type boolean?
-      local prev = prevPassive[spellID]
-      if prev == nil or prev ~= v then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["IsPassiveSpell"][spellID]
-        if not stream then
-          stream = {}
-          functions["IsPassiveSpell"][spellID] = stream
+      if type(spellID) == "number" then
+        newKnownSpells[spellID] = true
+        if not seenSpellIDs[spellID] then
+          seenSpellIDs[spellID] = true
+          orderedSpellIDs[#orderedSpellIDs + 1] = spellID
         end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevPassive[spellID] = v
       end
-    end
 
-    -- C_SpellBook.IsSpellKnown
-    if type(C_SpellBook) == "table" and type(C_SpellBook.IsSpellKnown) == "function" then
-      ---@type boolean
-      local v = C_SpellBook.IsSpellKnown(spellID) and true or false
-      ---@type boolean?
-      local prev = prevKnown[spellID]
-      if prev == nil or prev ~= v then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["C_SpellBook.IsSpellKnown"][spellID]
-        if not stream then
-          stream = {}
-          functions["C_SpellBook.IsSpellKnown"][spellID] = stream
-        end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevKnown[spellID] = v
+      slot = slot + 1
+    end
+  end
+
+  for slot in pairs(knownSlots) do
+    if not seenSlots[slot] then
+      AppendPackedIfChanged("GetSpellBookItemName", slot, prevName, t, tp, nil)
+      if functions["GetSpellBookItemInfo"] then
+        AppendPackedIfChanged("GetSpellBookItemInfo", slot, prevInfo, t, tp, nil)
       end
-    end
-
-    -- C_SpellBook.IsSpellInSpellBook
-    if type(C_SpellBook) == "table" and type(C_SpellBook.IsSpellInSpellBook) == "function" then
-      ---@type boolean
-      local v = C_SpellBook.IsSpellInSpellBook(spellID) and true or false
-      ---@type boolean?
-      local prev = prevInBook[spellID]
-      if prev == nil or prev ~= v then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["C_SpellBook.IsSpellInSpellBook"][spellID]
-        if not stream then
-          stream = {}
-          functions["C_SpellBook.IsSpellInSpellBook"][spellID] = stream
-        end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevInBook[spellID] = v
-      end
-    end
-
-    -- C_SpellBook.IsSpellKnownOrInSpellBook
-    if type(C_SpellBook) == "table" and type(C_SpellBook.IsSpellKnownOrInSpellBook) == "function" then
-      ---@type boolean
-      local v = C_SpellBook.IsSpellKnownOrInSpellBook(spellID) and true or false
-      ---@type boolean?
-      local prev = prevKnownOrIn[spellID]
-      if prev == nil or prev ~= v then
-        ---@type FunctionStreamEntry[]
-        local stream = functions["C_SpellBook.IsSpellKnownOrInSpellBook"][spellID]
-        if not stream then
-          stream = {}
-          functions["C_SpellBook.IsSpellKnownOrInSpellBook"][spellID] = stream
-        end
-        stream[#stream + 1] = { t = t, tp = tp, v = v }
-        prevKnownOrIn[spellID] = v
+      if functions["IsPassiveSpell"] then
+        AppendScalarIfChanged("IsPassiveSpell", slot, prevPassive, t, tp, nil)
       end
     end
   end
-end
 
---- Full collection + sample. Updates SpellBook membership if the set changed.
----@param capture CaptureState
-local function CollectAndSample(capture)
-  ---@type number[]
-  local ids = CollectSpellIDs()
-
-  -- Update SpellBook stream if changed
-  ---@type FunctionStreamEntry[]
-  local orderStream = functions["SpellBook"]
-  ---@type FunctionStreamEntry?
-  local prevOrder = orderStream[#orderStream]
-  if not prevOrder or not DeepCompare(prevOrder.v, ids) then
-    ---@type number
-    local t  = GetTime()          - capture.startedAt
-    ---@type number
-    local tp = GetTimePreciseSec() - capture.startedAtPrecise
-    ---@type number[]
-    local copy = {}
-    for i = 1, #ids do copy[i] = ids[i] end
-    orderStream[#orderStream + 1] = { t = t, tp = tp, v = copy }
-  end
-
-  spellOrder = ids
-  SampleSpells(capture)
+  AppendSpellBookIfChanged(t, tp, orderedSpellIDs)
+  AppendKnownSpellDelta(capture, newKnownSpells)
 end
 
 Core.RegisterTracker({
   events = {
     "SPELLS_CHANGED",
-    "LEARNED_SPELL_IN_TAB",
     "PLAYER_ENTERING_WORLD",
   },
 
   ---@param capture CaptureState
   Init = function(capture)
     functions = capture.session.functions
-    functions["SpellBook"]                            = {}
-    functions["GetSpellBookItemName"]                 = {}
-    functions["GetSpellBookItemInfo"]                 = {}
-    functions["IsPassiveSpell"]                       = {}
-    functions["C_SpellBook.IsSpellKnown"]             = {}
-    functions["C_SpellBook.IsSpellInSpellBook"]       = {}
-    functions["C_SpellBook.IsSpellKnownOrInSpellBook"] = {}
-    prevName    = {}
-    prevInfo    = {}
-    prevPassive = {}
-    prevKnown   = {}
-    prevInBook  = {}
-    prevKnownOrIn = {}
-    spellOrder  = {}
+    functionsDelta = capture.session.functionsDelta
 
-    CollectAndSample(capture)
+    functions["SpellBook"] = {}
+    functions["GetSpellBookItemName"] = {}
+    functions["GetSpellBookItemInfo"] = {}
+    functions["IsPassiveSpell"] = {}
+
+    prevName = {}
+    prevInfo = {}
+    prevPassive = {}
+    knownSlots = {}
+
+    ---@type table<number, boolean>
+    local initialKnownSpells = {}
+    currentKnownSpells = initialKnownSpells
+    functionsDelta["PlayerKnownSpells"] = {
+      t = 0,
+      tp = 0,
+      initial = {},
+      delta = {},
+    }
+
+    SampleSpellBook(capture)
+    functionsDelta["PlayerKnownSpells"].initial = {}
+    for spellID in pairs(currentKnownSpells) do
+      functionsDelta["PlayerKnownSpells"].initial[#functionsDelta["PlayerKnownSpells"].initial + 1] = spellID
+    end
+    table.sort(functionsDelta["PlayerKnownSpells"].initial)
+    functionsDelta["PlayerKnownSpells"].delta = {}
   end,
 
   ---@param capture CaptureState
   OnEvent = function(capture)
-    CollectAndSample(capture)
+    SampleSpellBook(capture)
   end,
 })

@@ -9,7 +9,7 @@ local Core = QuestLogTraceCore
 ---@type string
 local ADDON_NAME = "QuestLogTrace"
 ---@type number
-local SCHEMA_VERSION = 8
+local SCHEMA_VERSION = 9
 ---@type number
 local DEFAULT_MAX_SESSIONS = 20
 
@@ -113,6 +113,7 @@ local TRACKED_EVENT_CATEGORIES = {
       "PLAYER_REGEN_ENABLED",
       "PLAYER_TARGET_CHANGED",
       "PLAYER_EQUIPMENT_CHANGED",
+      "SKILL_LINES_CHANGED",
       "LOOT_OPENED",
       "LOOT_READY",
       "LOOT_CLOSED",
@@ -262,7 +263,8 @@ local function EnsureSavedVariables()
   end
 
   QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
-  QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
+  -- QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
+  QuestLogTraceCharacter.sessions = {}
 end
 
 --- Remove oldest sessions if the count exceeds the configured maximum.

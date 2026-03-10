@@ -108,6 +108,45 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "canSetInactive", type: "boolean" },
   ],
 
+  // -- SkillLines.lua --------------------------------------------------------
+
+  "GetSkillLineInfo": [
+    { name: "skillName", type: "string" },
+    { name: "header", type: "number" },
+    { name: "isExpanded", type: "number" },
+    { name: "skillRank", type: "number" },
+    { name: "numTempPoints", type: "number" },
+    { name: "skillModifier", type: "number" },
+    { name: "skillMaxRank", type: "number" },
+    { name: "isAbandonable", type: "number" },
+    { name: "stepCost", type: "number" },
+    { name: "rankCost", type: "number" },
+    { name: "minLevel", type: "number" },
+    { name: "skillCostType", type: "number" },
+    { name: "skillDescription", type: "string" },
+  ],
+
+  "GetProfessions": [
+    { name: "prof1", type: "number" },
+    { name: "prof2", type: "number" },
+    { name: "archaeology", type: "number" },
+    { name: "fishing", type: "number" },
+    { name: "cooking", type: "number" },
+  ],
+
+  "GetProfessionInfo": [
+    { name: "name", type: "string" },
+    { name: "icon", type: "string" },
+    { name: "skillLevel", type: "number" },
+    { name: "maxSkillLevel", type: "number" },
+    { name: "numAbilities", type: "number" },
+    { name: "spelloffset", type: "number" },
+    { name: "skillLine", type: "number" },
+    { name: "skillModifier", type: "number" },
+    { name: "specializationIndex", type: "number" },
+    { name: "specializationOffset", type: "number" },
+  ],
+
   // -- Position.lua --------------------------------------------------------------
 
   "IsInInstance": [
@@ -152,5 +191,18 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
   "UnitName": [
     { name: "name", type: "string" },
     { name: "realm", type: "string" },
+  ],
+
+  // -- SpellBook.lua ----------------------------------------------------------
+
+  "GetSpellBookItemName": [
+    { name: "spellName", type: "string" },
+    { name: "spellSubName", type: "string" },
+    { name: "spellID", type: "number" },
+  ],
+
+  "GetSpellBookItemInfo": [
+    { name: "spellType", type: "string" },
+    { name: "id", type: "number" },
   ],
 };

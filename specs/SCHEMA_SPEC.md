@@ -1,4 +1,4 @@
-# Schema Spec (v8)
+# Schema Spec (v9)
 
 ## 1) SavedVariables
 
@@ -6,7 +6,7 @@
 
 ```lua
 QuestLogTrace = {
-  schemaVersion = 8,
+  schemaVersion = 9,
   settings = {
     maxSessions = 20,
     autoStart = true,
@@ -39,9 +39,9 @@ on fresh install or migration.
 
 ### Migration
 
-If `schemaVersion ~= 8`, the account-level table is wiped and recreated
+If `schemaVersion ~= 9`, the account-level table is wiped and recreated
 with defaults. Per-character sessions from older versions are lost. There
-is no incremental migration from v7 to v8.
+is no incremental migration from v8 to v9.
 
 ### Session pruning
 
@@ -56,7 +56,7 @@ Each `/qlt save` appends one record to `QuestLogTraceCharacter.sessions`.
 
 ```lua
 SessionRecord = {
-  schemaVersion = 8,
+  schemaVersion = 9,
   name = "2026-02-10_12-34-56",
 
   startedAt        = 100000.000,     -- GetTime() at capture start
@@ -226,7 +226,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 ## 9) Complete function catalog
 
 > **API vs synthetic keys.** Most function keys in the tables below are
-> direct WoW API names (e.g. `GetZoneText`, `UnitLevel`). Two keys are
+> direct WoW API names (e.g. `GetZoneText`, `UnitLevel`). Some keys are
 > **synthetic** -- they are computed by our trackers rather than matching a
 > single WoW API function. These are marked with *(synthetic)* below.
 
@@ -242,11 +242,14 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `GetNumLootItems` | scalar (number) | 0 when no loot window |
 | `IsInGroup` | scalar (boolean) | |
 | `GetNumGroupMembers` | scalar (number) | 0 when not in a group |
+| `GetNumSkillLines` | scalar (number) | visible skill rows after header expansion |
 | `GetQuestGreenRange` | scalar (number) | XP threshold; changes with player level |
+| `GetProfessions` | tuple (n=5) | profession tab indices; nil in missing tuple slots |
 | `C_GossipInfo.GetAvailableQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
 | `C_GossipInfo.GetActiveQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
 | `QuestLog` | object (number[]) | *(synthetic)* Computed by iterating GetQuestLogTitle, not a WoW API function |
 | `FactionOrder` | object (number[]) | *(synthetic)* Computed by iterating GetFactionInfo and expanding headers, not a WoW API function |
+| `SpellBook` | object (number[]) | *(synthetic)* Ordered unique spell IDs discovered by slot enumeration |
 
 ### Parameterized by `"player"`
 
@@ -286,6 +289,9 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `GetLootSourceInfo` | tuple (n=2) | nil when loot window closed |
 | `GetLootSlotLink` | scalar (string) | nil when loot window closed |
 | `GetLootSlotType` | scalar (number) | nil when loot window closed |
+| `GetSpellBookItemName` | tuple (n=3) | `spellName`, `spellSubName`, `spellID`; nil when slot absent |
+| `GetSpellBookItemInfo` | tuple (n=2) | `spellType`, `id`; nil when slot absent |
+| `IsPassiveSpell` | scalar (number) | raw `1|nil` return from API |
 
 ### Parameterized by factionID
 
@@ -293,11 +299,19 @@ All tuple-returning functions MUST have `n` on every stored value.
 |---|---|---|
 | `GetFactionInfoByID` | tuple (n=16) | Full 16-value API return |
 
+### Parameterized by skill index / profession tab index
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `GetSkillLineInfo` | tuple (n=13) | keyed by visible skill-line row index after header expansion |
+| `GetProfessionInfo` | tuple (n=10) | keyed by profession tab index returned by `GetProfessions()` |
+
 ### Delta streams (in `functionsDelta`)
 
 | Function key | Notes |
 |---|---|
 | `GetQuestsCompleted` | Only grows (remove absent in practice) |
+| `PlayerKnownSpells` | Known player spell IDs discovered by enumerating spellbook slots |
 
 ---
 
@@ -310,7 +324,7 @@ number of entries.
 
 ```lua
 {
-  schemaVersion = 8,
+  schemaVersion = 9,
   name = "2026-02-10_12-34-56",
 
   -- Session envelope: absolute clock baselines and derived durations

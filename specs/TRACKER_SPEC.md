@@ -220,6 +220,8 @@ everything to nil/0 on `LOOT_CLOSED`.
 | CompletedQuests | `Trackers/CompletedQuests.lua` | `GetQuestsCompleted` (functionsDelta) | Event + delayed re-samples | Same 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | UnitInteraction | `Trackers/UnitInteraction.lua` | `UnitGUID["target","npc","questnpc"]`, `UnitName["target","npc","questnpc"]`, `C_GossipInfo.GetAvailableQuests`, `C_GossipInfo.GetActiveQuests` | Event-driven | `PLAYER_TARGET_CHANGED`, 8 quest dialog, `QUEST_ACCEPTED`, `QUEST_TURNED_IN`, `LOOT_OPENED`, 22 npc_interaction, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` (37 total) |
 | GroupState | `Trackers/GroupState.lua` | `IsInGroup`, `GetNumGroupMembers` | Event-driven | `GROUP_JOINED`, `GROUP_LEFT`, `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
+| SkillLines | `Trackers/SkillLines.lua` | `GetNumSkillLines`, `GetSkillLineInfo[index]`, `GetProfessions`, `GetProfessionInfo[index]` | Event + index iteration | `SKILL_LINES_CHANGED`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
+| SpellBook | `Trackers/SpellBook.lua` | `SpellBook`, `GetSpellBookItemName[slot]`, `GetSpellBookItemInfo[slot]`, `IsPassiveSpell[slot]`, `PlayerKnownSpells` (functionsDelta) | Event + slot iteration | `SPELLS_CHANGED`, `PLAYER_ENTERING_WORLD` |
 
 ---
 

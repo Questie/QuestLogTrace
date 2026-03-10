@@ -143,6 +143,26 @@ Triggers `IsInGroup` and `GetNumGroupMembers` sampling.
 - `PLAYER_ENTERING_WORLD` *(login-time sampling)*
 - `SPELLS_CHANGED` *(login-time sampling)*
 
+### SkillLines tracker
+
+Triggers skill window and profession-tab sampling. Expands all skill
+headers before sampling so hidden child rows are visible to
+`GetSkillLineInfo(index)`.
+
+- `SKILL_LINES_CHANGED`
+- `PLAYER_ENTERING_WORLD` *(login-time sampling)*
+- `SPELLS_CHANGED` *(login-time sampling)*
+
+### SpellBook tracker
+
+Triggers raw player-spellbook sampling and `PlayerKnownSpells` delta
+updates. Enumerates spellbook slots starting at 1 until
+`GetSpellBookItemName(slot, "spell")` returns nil, which includes
+profession tabs in Classic Era.
+
+- `SPELLS_CHANGED`
+- `PLAYER_ENTERING_WORLD` *(login-time sampling)*
+
 ### PlayerIdentity tracker
 
 No events. Sampled once at capture start (`t=0`).
@@ -174,6 +194,7 @@ to trackers for login-time data sampling (see tracker sections above).
 - `PLAYER_REGEN_DISABLED`
 - `PLAYER_REGEN_ENABLED`
 - `PLAYER_EQUIPMENT_CHANGED`
+- `SKILL_LINES_CHANGED`
 - `NEW_RECIPE_LEARNED`
 - `UI_INFO_MESSAGE`
 - `CURRENCY_DISPLAY_UPDATE`
@@ -238,6 +259,9 @@ to trackers for login-time data sampling (see tracker sections above).
 - `PLAYER_ENTERING_WORLD` and `SPELLS_CHANGED` are used for login-time
   data sampling. With auto-start capture on `PLAYER_LOGIN`, the tracker
   `Init` runs at t=0 but WoW API data may not be fully populated yet.
+- `SKILL_LINES_CHANGED` is both recorded in the event stream and routed
+  to the SkillLines tracker. Chat-based skill messages remain recorded
+  as raw events only; they are not used as the primary source of truth.
   These events fire later in the login sequence (`PLAYER_ENTERING_WORLD`
   fires after `PLAYER_LOGIN`; `SPELLS_CHANGED` fires when the spellbook
   populates) and trigger re-samples that capture the "data settling"

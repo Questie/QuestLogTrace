@@ -2,7 +2,7 @@
 
 Agent-facing index for understanding QuestLogTrace data capture and emulation system.
 QuestLogTrace is a WoW Classic Era addon that records quest and gameplay events for
-offline replay. Schema version 8.
+offline replay. Schema version 9.
 
 ---
 
@@ -25,7 +25,7 @@ offline replay. Schema version 8.
 │  globals.lua          Core namespace, utilities,        │
 │                       RegisterTracker API               │
 ├─────────────────────────────────────────────────────────┤
-│  Trackers/            7 isolated tracker files          │
+│  Trackers/            10 isolated tracker files         │
 │    PlayerIdentity     UnitRace, UnitClass, UnitSex      │
 │    UnitLevel          UnitLevel["player"]               │
 │    Position           Zone texts, map, XY position      │
@@ -33,6 +33,9 @@ offline replay. Schema version 8.
 │    Reputation         FactionOrder, GetFactionInfoByID  │
 │    QuestLog           Quest membership + per-quest data │
 │    CompletedQuests    GetQuestsCompleted delta stream   │
+│    GroupState         Party membership state            │
+│    SkillLines         Skill window + profession tabs    │
+│    SpellBook          Raw slot state + known spell set  │
 ├─────────────────────────────────────────────────────────┤
 │  QuestLogTrace_UI     Control frame (Start/Stop/Save)   │
 ├─────────────────────────────────────────────────────────┤
@@ -54,7 +57,7 @@ Primary JTBDs:
 specs/
   README.md                    # This file
   ARCHITECTURE_SPEC.md         # File structure, load order, bootstrap, migration
-  SCHEMA_SPEC.md               # SavedVariables schema (v8), time model, data formats
+  SCHEMA_SPEC.md               # SavedVariables schema (v9), time model, data formats
   TRACKER_SPEC.md              # Tracker interface, lifecycle, trigger patterns
   EVENT_CATALOG.md             # Events by tracker, unrouted events
   FUNCTION_EMULATION_SPEC.md   # Generic lookup algorithm for function replay
@@ -89,6 +92,9 @@ specs/
 | Reputation | 3 events | Event + index iteration | `FactionOrder`, `GetFactionInfoByID` |
 | QuestLog | 14 quest events | Event + delayed re-samples + iteration | Quest membership + per-quest functions |
 | CompletedQuests | 14 quest events | Event + delayed re-samples | `GetQuestsCompleted` delta stream |
+| GroupState | 5 events | Event-driven | `IsInGroup`, `GetNumGroupMembers` |
+| SkillLines | 3 events | Event + index iteration | `GetNumSkillLines`, `GetSkillLineInfo`, `GetProfessions`, `GetProfessionInfo` |
+| SpellBook | 2 events | Event + slot iteration | `GetSpellBookItemName`, `GetSpellBookItemInfo`, `IsPassiveSpell`, `PlayerKnownSpells` |
 
 ---
 
@@ -111,13 +117,13 @@ specs/
 
 ## Conventions
 
-- Schema version is always 8 (current).
+- Schema version is always 9 (current).
 - All timestamps are session-relative (not absolute).
 - All Lua code must use LuaLS annotations.
 - `specs/` defines expected behavior; update it when implementation changes.
 - Function streams can be parameterless or parameterized; detect automatically.
 - Packed args use `{ ..., n = count }` format.
-- `GetQuestsCompleted` uses delta stream, not standard function stream.
+- `GetQuestsCompleted` and `PlayerKnownSpells` use delta streams, not standard function streams.
 
 ---
 
