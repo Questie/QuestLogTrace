@@ -28,6 +28,10 @@ export function getSchema(functionName: string): ReturnField[] | undefined {
 // Schemas — only multi-return functions need entries here.
 // Single-return functions (GetZoneText, UnitLevel, etc.) are omitted
 // because their value is self-explanatory.
+//
+// Schemas are keyed by function name, not by parameter path. Nested streams such
+// as GetQuestLogRewardInfo[rewardIndex][questId] still share one return tuple
+// shape for every leaf stream.
 // ---------------------------------------------------------------------------
 
 const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
@@ -48,6 +52,13 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
   "GetLootSourceInfo": [
     { name: "guid", type: "string" },
     { name: "quantity", type: "number" },
+  ],
+
+  // -- QuestDialog.lua --------------------------------------------------------
+
+  "GetActiveTitle": [
+    { name: "title", type: "string" },
+    { name: "isComplete", type: "boolean" },
   ],
 
   // -- QuestLog.lua -----------------------------------------------------------
@@ -85,6 +96,16 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
     { name: "isElite", type: "boolean" },
     { name: "tradeskillLineIndex", type: "number" },
     { name: "displayTimeLeft", type: "unknown" },
+  ],
+
+  "GetQuestLogRewardInfo": [
+    { name: "itemName", type: "string" },
+    { name: "itemTexture", type: "unknown" },
+    { name: "numItems", type: "number" },
+    { name: "quality", type: "number" },
+    { name: "isUsable", type: "boolean" },
+    { name: "itemID", type: "number" },
+    { name: "itemLevel", type: "number" },
   ],
 
   // -- Reputation.lua ---------------------------------------------------------
@@ -177,6 +198,11 @@ const FUNCTION_SCHEMAS: Record<string, ReturnField[]> = {
 
   "UnitClass": [
     { name: "className", type: "string" },
+    { name: "classFilename", type: "string" },
+    { name: "classID", type: "number" },
+  ],
+
+  "UnitClassBase": [
     { name: "classFilename", type: "string" },
     { name: "classID", type: "number" },
   ],

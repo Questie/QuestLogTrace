@@ -139,9 +139,9 @@ end
 
 ---------------------------------------------------------------------------
 -- Private movement event frame
--- PLAYER_STARTED_MOVING / PLAYER_STOPPED_MOVING fire frequently. We use
--- them as position sampling triggers but keep them out of the main event
--- stream to avoid bloat.
+-- PLAYER_STARTED_MOVING / PLAYER_STOPPED_MOVING are private sampling triggers.
+-- They intentionally stay out of the main event stream to avoid trace noise,
+-- while still sampling position immediately on movement transitions.
 ---------------------------------------------------------------------------
 
 ---@type CaptureState?

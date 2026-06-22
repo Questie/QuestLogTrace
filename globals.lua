@@ -21,6 +21,13 @@ C_After = C_Timer.After
 ---@field tp number Relative time from GetTimePreciseSec()
 ---@field v any The value at this point in time
 
+---A stored API stream leaf or nested parameter map.
+---Parameterless APIs store the leaf array directly. Parameterized APIs nest by
+---native argument order until the final value is a FunctionStreamEntry[] leaf;
+---for example `GetQuestLogRewardInfo(index, questID)` is stored as
+---`functions["GetQuestLogRewardInfo"][index][questID]`.
+---@alias FunctionStream FunctionStreamEntry[]|table<string|number, FunctionStream>
+
 ---@class EventRecord
 ---@field t number Relative time from GetTime()
 ---@field tp number Relative time from GetTimePreciseSec()
@@ -53,7 +60,7 @@ C_After = C_Timer.After
 ---@field duration number?
 ---@field durationPrecise number?
 ---@field events EventRecord[]
----@field functions table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
+---@field functions table<string, FunctionStream>
 ---@field functionsDelta table<string, DeltaStream>
 
 ---@class CaptureState
@@ -183,6 +190,7 @@ end
 ---@return PackedArgs
 function Core.PackArgs(...)
   local tbl = { ... }
+  ---@cast tbl PackedArgs
   tbl.n = select("#", ...)
   return tbl
 end

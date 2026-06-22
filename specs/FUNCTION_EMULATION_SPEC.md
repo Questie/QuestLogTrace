@@ -1,24 +1,26 @@
 # Function Emulation Spec (v9)
 
-How to reconstruct WoW API function outputs at a target time `t` from
-QuestLogTrace saved data.
+How to reconstruct WoW API function outputs at a target time `t` from QuestLogTrace saved data.
 
 ## 1) Generic lookup
 
-All function streams use the same algorithm:
+Stored function streams use the same lookup algorithm: find the stream for an API/function key, follow any parameter maps in native argument order, find the latest entry at or before the target time, and unpack packed tuple values when returning them.
 
 ```lua
--- Get the stream for a function
-function getStream(session, name, param)
+-- Multi-argument APIs use nested parameterized tables in native argument order.
+function getStream(session, name, ...)
   local fn = session.functions[name]
   if not fn then return nil end
-  if param ~= nil then
-    fn = fn[param]
+  for i = 1, select("#", ...) do
+    local param = select(i, ...)
+    if param ~= nil then
+      fn = fn[param]
+      if not fn then return nil end
+    end
   end
   return fn
 end
 
--- Find value at target time
 function valueAt(stream, target_t)
   local result = nil
   for i = 1, #stream do
@@ -28,74 +30,132 @@ function valueAt(stream, target_t)
   return result
 end
 
--- Return value to caller
 function emulate(v)
   if type(v) == "table" and v.n then
-    return unpack(v, 1, v.n)  -- tuple
-  else
-    return v                    -- scalar or object
+    return unpack(v, 1, v.n)
   end
+  return v
 end
 ```
 
-This covers every function in the catalog. No per-function logic needed.
+Direct stream lookup does not need per-function logic. WoW-signature emulation for APIs whose native parameters differ from the stored key, such as `GetQuestLogTitle(index)` or `GetFactionInfo(index)`, requires derived lookup logic.
 
 ## 2) Parameterless vs parameterized detection
+
+In Lua-shaped data, a table whose first child has `t` is a leaf stream array; otherwise it is a parameter map. Nested streams apply this rule recursively.
 
 ```lua
 local fn = session.functions[name]
 local firstKey = next(fn)
 if type(fn[firstKey]) == "table" and fn[firstKey].t then
-  -- flat stream (parameterless)
+  -- flat stream array
 else
-  -- keyed by argument (parameterized), index into fn[param]
+  -- argument-keyed map; index/recurse by params
 end
 ```
 
+The TypeScript analyzer normalizes Lua tables first. Leaf streams become arrays and parameter maps remain objects keyed by parameter. Numeric Lua keys are normalized to strings by the loader, so analyzer lookup stringifies parameters while walking nested maps.
+
 ## 3) Function-to-stream mapping
 
-Every function maps directly to `session.functions[key]` or
-`session.functions[key][param]`. The key is the WoW API function name.
+Every stored function maps directly to `session.functions[key]`, `session.functions[key][param]`, or `session.functions[key][arg1][arg2]...`.
 
 | WoW API call | Stream lookup |
 |---|---|
 | `GetZoneText()` | `functions["GetZoneText"]` |
 | `GetSubZoneText()` | `functions["GetSubZoneText"]` |
 | `GetRealZoneText()` | `functions["GetRealZoneText"]` |
+| `IsInInstance()` | `functions["IsInInstance"]` |
+| `GetInstanceInfo()` | `functions["GetInstanceInfo"]` |
 | `GetNumLootItems()` | `functions["GetNumLootItems"]` |
+| `IsInGroup()` | `functions["IsInGroup"]` |
+| `GetNumGroupMembers()` | `functions["GetNumGroupMembers"]` |
+| `GetNumSkillLines()` | `functions["GetNumSkillLines"]` |
+| `GetProfessions()` | `functions["GetProfessions"]` |
+| `C_QuestLog.GetMaxNumQuestsCanAccept()` | `functions["C_QuestLog.GetMaxNumQuestsCanAccept"]` |
+| `GetServerTime()` | `functions["GetServerTime"]` snapshot; derive continuous time if needed |
+| `GetQuestResetTime()` | `functions["GetQuestResetTime"]` snapshot; derive countdown semantics if needed |
+| `C_GossipInfo.GetAvailableQuests()` | `functions["C_GossipInfo.GetAvailableQuests"]` |
+| `C_GossipInfo.GetActiveQuests()` | `functions["C_GossipInfo.GetActiveQuests"]` |
+| `C_GossipInfo.GetNumAvailableQuests()` | `functions["C_GossipInfo.GetNumAvailableQuests"]` |
+| `C_GossipInfo.GetNumActiveQuests()` | `functions["C_GossipInfo.GetNumActiveQuests"]` |
+| `C_GossipInfo.GetText()` | `functions["C_GossipInfo.GetText"]` |
+| `C_GossipInfo.GetOptions()` | `functions["C_GossipInfo.GetOptions"]` |
+| `GetNumGossipAvailableQuests()` | `functions["GetNumGossipAvailableQuests"]` |
+| `GetNumGossipActiveQuests()` | `functions["GetNumGossipActiveQuests"]` |
+| `GetGossipAvailableQuests()` | `functions["GetGossipAvailableQuests"]` |
+| `GetGossipActiveQuests()` | `functions["GetGossipActiveQuests"]` |
+| `GetGreetingText()` | `functions["GetGreetingText"]` |
+| `GetNumActiveQuests()` | `functions["GetNumActiveQuests"]` |
+| `GetActiveTitle(index)` | `functions["GetActiveTitle"][index]` |
+| `GetNumAvailableQuests()` | `functions["GetNumAvailableQuests"]` |
+| `GetAvailableTitle(index)` | `functions["GetAvailableTitle"][index]` |
+| `GetQuestID()` | `functions["GetQuestID"]` |
+| `GetTitleText()` | `functions["GetTitleText"]` |
+| `GetQuestText()` | `functions["GetQuestText"]` |
+| `GetObjectiveText()` | `functions["GetObjectiveText"]` |
+| `GetProgressText()` | `functions["GetProgressText"]` |
+| `GetRewardText()` | `functions["GetRewardText"]` |
+| `GetRewardXP()` | `functions["GetRewardXP"]` |
+| `IsQuestCompletable()` | `functions["IsQuestCompletable"]` |
+| `GetNumQuestChoices()` | `functions["GetNumQuestChoices"]` |
 | `UnitLevel("player")` | `functions["UnitLevel"]["player"]` |
 | `UnitRace("player")` | `functions["UnitRace"]["player"]` |
 | `UnitClass("player")` | `functions["UnitClass"]["player"]` |
+| `UnitClassBase("player")` | `functions["UnitClassBase"]["player"]` |
 | `UnitSex("player")` | `functions["UnitSex"]["player"]` |
+| `UnitFactionGroup("player")` | `functions["UnitFactionGroup"]["player"]` |
 | `C_Map.GetBestMapForUnit("player")` | `functions["C_Map.GetBestMapForUnit"]["player"]` |
 | `C_Map.GetPlayerMapPosition(map, "player")` | `functions["C_Map.GetPlayerMapPosition"]["player"]` |
+| `UnitGUID(token)` | `functions["UnitGUID"][token]` |
+| `UnitName(token)` | `functions["UnitName"][token]` |
 | `IsQuestComplete(questId)` | `functions["IsQuestComplete"][questId]` |
+| `HaveQuestData(questId)` | `functions["HaveQuestData"][questId]` |
+| `C_QuestLog.IsOnQuest(questId)` | `functions["C_QuestLog.IsOnQuest"][questId]` |
 | `C_QuestLog.IsQuestFlaggedCompleted(questId)` | `functions["C_QuestLog.IsQuestFlaggedCompleted"][questId]` |
 | `C_QuestLog.GetQuestObjectives(questId)` | `functions["C_QuestLog.GetQuestObjectives"][questId]` |
-| `GetQuestLogTitle(questId)` | `functions["GetQuestLogTitle"][questId]` |
+| `GetQuestLogTitle(questLogIndex)` for active quest `questId` | `functions["GetQuestLogTitle"][questId]` |
+| `GetQuestLogQuestText(questLogIndex)` for active quest `questId` | `functions["GetQuestLogQuestText"][questId]` |
+| Timed quest value for `questId` | `functions["GetQuestTimers"][questId]` |
+| Quest log time-left value for `questId` | `functions["GetQuestLogTimeLeft"][questId]` |
+| `GetNumQuestLogRewards(questId)` | `functions["GetNumQuestLogRewards"][questId]` |
+| `GetQuestLogRewardMoney(questId)` | `functions["GetQuestLogRewardMoney"][questId]` |
+| `GetQuestLogRewardInfo(rewardIndex, questId)` | `functions["GetQuestLogRewardInfo"][rewardIndex][questId]` |
 | `GetQuestTagInfo(questId)` | `functions["GetQuestTagInfo"][questId]` |
 | `GetLootSlotInfo(slot)` | `functions["GetLootSlotInfo"][slot]` |
 | `GetLootSourceInfo(slot)` | `functions["GetLootSourceInfo"][slot]` |
 | `GetLootSlotLink(slot)` | `functions["GetLootSlotLink"][slot]` |
 | `GetLootSlotType(slot)` | `functions["GetLootSlotType"][slot]` |
 | `GetFactionInfoByID(factionID)` | `functions["GetFactionInfoByID"][factionID]` |
-| `GetNumSkillLines()` | `functions["GetNumSkillLines"]` |
 | `GetSkillLineInfo(index)` | `functions["GetSkillLineInfo"][index]` |
-| `GetProfessions()` | `functions["GetProfessions"]` |
 | `GetProfessionInfo(index)` | `functions["GetProfessionInfo"][index]` |
 | `GetSpellBookItemName(slot)` | `functions["GetSpellBookItemName"][slot]` |
 | `GetSpellBookItemInfo(slot)` | `functions["GetSpellBookItemInfo"][slot]` |
 | `IsPassiveSpell(slot)` | `functions["IsPassiveSpell"][slot]` |
 
-### Derived functions
+Notes:
 
-These are not stored directly but reconstructed from other streams:
+- `GetQuestLogTitle` and `GetQuestLogQuestText` are sampled with the native quest-log index but stored by `questId`. Native index emulation should map index → questId via the `QuestLog` synthetic stream first.
+- `GetQuestTimers[questId]` and `GetQuestLogTimeLeft[questId]` are derived compatibility streams from `GetQuestTimers()` and `GetQuestIndexForTimer(timerIndex)`; they do not mutate quest-log selection.
+- `GetQuestLogRewardInfo` uses nested maps in native argument order `[rewardIndex][questId]`. Reward streams receive nil tombstones when counts shrink or quests leave the log.
+- Legacy gossip globals are raw packed varargs; `GetGossipAvailableQuests` is repeated 7-tuples and `GetGossipActiveQuests` is repeated 6-tuples.
+
+### Stored custom streams
+
+| Stream | Meaning |
+|---|---|
+| `functions["QuestLog"]` | Array of active quest IDs in quest-log order |
+| `functions["FactionOrder"]` | Ordered array of known faction IDs |
+| `functions["SpellBook"]` | Ordered unique spell IDs discovered from spellbook slots |
+
+### Derived WoW APIs
 
 | WoW API call | Derivation |
 |---|---|
-| `GetFactionInfo(index)` | `factionID = valueAt(functions["FactionOrder"], t)[index]` → then `functions["GetFactionInfoByID"][factionID]` |
+| `GetFactionInfo(index)` | `factionID = valueAt(functions["FactionOrder"], t)[index]` → `functions["GetFactionInfoByID"][factionID]` |
 | `GetNumFactions()` | `#valueAt(functions["FactionOrder"], t)` |
-| `QuestLog` (quest IDs in log) | `valueAt(functions["QuestLog"], t)` — returns full array |
+| `GetQuestLogTitle(questLogIndex)` | `questId = valueAt(functions["QuestLog"], t)[questLogIndex]` → `functions["GetQuestLogTitle"][questId]` |
+| `GetQuestLogQuestText(questLogIndex)` | same index → questId map, then `functions["GetQuestLogQuestText"][questId]` |
 
 ## 4) Delta stream replay
 
@@ -105,49 +165,24 @@ These are not stored directly but reconstructed from other streams:
 function getDeltaSet(session, key, target_t)
   local data = session.functionsDelta[key]
   local set = {}
-  for _, id in ipairs(data.initial) do
-    set[id] = true
-  end
+  for _, id in ipairs(data.initial) do set[id] = true end
   for _, delta in ipairs(data.delta) do
     if delta.t > target_t then break end
-    if delta.add then
-      for _, id in ipairs(delta.add) do set[id] = true end
-    end
-    if delta.remove then
-      for _, id in ipairs(delta.remove) do set[id] = nil end
-    end
+    if delta.add then for _, id in ipairs(delta.add) do set[id] = true end end
+    if delta.remove then for _, id in ipairs(delta.remove) do set[id] = nil end end
   end
   return set
 end
 ```
 
-Examples:
-
-```lua
-local completed = getDeltaSet(session, "GetQuestsCompleted", t)
-local knownSpells = getDeltaSet(session, "PlayerKnownSpells", t)
-```
-
 ## 5) Event replay
 
-Iterate `session.events` in order. Each entry has `t`, `tp`, `e`, `a`.
-
-```lua
-for _, event in ipairs(session.events) do
-  if event.t >= t0 and event.t <= t1 then
-    fireEvent(event.e, unpack(event.a, 1, event.a.n))
-  end
-end
-```
+Iterate `session.events` in order and fire events whose `t` lies in the requested range. Position movement transitions (`PLAYER_STARTED_MOVING`, `PLAYER_STOPPED_MOVING`) are private sampling triggers and are not recorded in the main event stream.
 
 ## 6) Known limits
 
-- Only the functions listed above can be emulated. Other WoW APIs are
-  not captured.
-- `nil` values in function streams mean the function returned nil at
-  that time (e.g. loot window closed). The emulator should return nil,
-  not treat it as "no data".
+- Only captured/listed functions can be emulated.
+- Missing `v` means a stored nil value.
 - Position XY is rounded to 4 decimal places.
-- Skill line IDs are not normalized during capture. Consumers must join
-  `GetSkillLineInfo(index)` with external lookup data if they need stable
-  numeric skill IDs beyond what `GetProfessionInfo(index)` exposes.
+- Skill line IDs are not normalized during capture.
+- Reset-time streams are low-frequency snapshots; replay consumers derive continuously changing server time or countdown behavior.
