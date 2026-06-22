@@ -15,7 +15,7 @@ time T?" for every captured function.
 
 ```lua
 SessionRecord = {
-  schemaVersion = 8,
+  schemaVersion = 9,
   name = "2026-02-10_12-34-56",       -- session identifier
 
   -- Absolute clock baselines (seconds)
@@ -105,8 +105,8 @@ The function takes no relevant arguments. The stream is a flat array of
 ### Parameterized — keyed by argument
 
 The function takes an argument that determines which stream to use. The
-top-level table is keyed by that argument, each value is a flat `{t, tp, v}`
-array:
+top-level table is keyed by that argument, each value is either a flat
+`{t, tp, v}` array or another parameter map for true multi-argument APIs:
 
 ```lua
 ["UnitLevel"] = {
@@ -118,7 +118,17 @@ array:
 ```
 
 Keys can be strings (`"player"`, `"target"`) or numbers (quest IDs, slot
-indices, faction IDs).
+indices, faction IDs). Multi-argument streams recurse in native argument order:
+
+```lua
+["GetQuestLogRewardInfo"] = {
+  [1] = { -- rewardIndex
+    [783] = { -- questId
+      { t = 0.000, tp = 0.00020, v = { "Reward", 134400, 1, 1, true, 12345, 10, n = 7 } },
+    },
+  },
+}
+```
 
 ### How to detect the format
 
@@ -128,14 +138,17 @@ local firstKey = next(stream)
 if type(stream[firstKey]) == "table" and stream[firstKey].t then
   -- parameterless: stream itself is the array
 else
-  -- parameterized: stream[param] is the array
+  -- parameterized: stream[param] is an array or another parameter map
 end
 ```
 
 ### Change-only storage
 
-Entries are only appended when the return value changes. The first entry
-is always the initial value at `t = 0` (capture start).
+Entries are only appended when the return value changes. Core streams
+sampled at session start often have an initial entry at `t = 0`, but this
+is not guaranteed for every stream. Discovered parameter streams and
+transient dialog/gossip/reward/loot/indexed streams may first appear later;
+streams for unavailable client APIs may be empty or absent entirely.
 
 **To find the value at a target time:** scan the array and take the last
 entry whose `t <= target_t`. If no entry exists at or before `target_t`,
@@ -241,13 +254,17 @@ Three functions cover all stream lookups:
 --- Get the stream array for a function, optionally narrowed by parameter.
 ---@param session SessionRecord
 ---@param name string        -- function key (e.g. "GetZoneText", "UnitLevel")
----@param param any?         -- argument key for parameterized streams
+---@param ... any            -- argument keys for parameterized/nested streams
 ---@return FunctionStreamEntry[]?
-function getStream(session, name, param)
+function getStream(session, name, ...)
   local fn = session.functions[name]
   if not fn then return nil end
-  if param ~= nil then
-    fn = fn[param]
+  for i = 1, select("#", ...) do
+    local param = select(i, ...)
+    if param ~= nil then
+      fn = fn[param]
+      if not fn then return nil end
+    end
   end
   return fn
 end
@@ -312,6 +329,34 @@ Called with no arguments. Stream is a flat `{t, tp, v}` array.
 | `GetQuestGreenRange` | scalar number | XP green-range threshold |
 | `C_GossipInfo.GetAvailableQuests` | object (table[]) | Array of available quests from an NPC |
 | `C_GossipInfo.GetActiveQuests` | object (table[]) | Array of active quests at an NPC |
+| `C_GossipInfo.GetNumAvailableQuests` | scalar number | Gossip available count |
+| `C_GossipInfo.GetNumActiveQuests` | scalar number | Gossip active count |
+| `C_GossipInfo.GetText` | scalar string/nil | Gossip text |
+| `C_GossipInfo.GetOptions` | object table[] | Gossip options |
+| `GetNumGossipAvailableQuests` | scalar number | Legacy gossip available count |
+| `GetNumGossipActiveQuests` | scalar number | Legacy gossip active count |
+| `GetGossipAvailableQuests` | tuple (n varies) | Legacy repeated 7-tuples |
+| `GetGossipActiveQuests` | tuple (n varies) | Legacy repeated 6-tuples |
+| `GetGreetingText` | scalar string/nil | Greeting text |
+| `GetNumActiveQuests` | scalar number | Greeting active count |
+| `GetNumAvailableQuests` | scalar number | Greeting available count |
+| `GetQuestID` | scalar number | Current quest dialog ID |
+| `GetTitleText` | scalar string/nil | Current quest title |
+| `GetQuestText` | scalar string/nil | Current quest text |
+| `GetObjectiveText` | scalar string/nil | Current objective text |
+| `GetProgressText` | scalar string/nil | Current progress text |
+| `GetRewardText` | scalar string/nil | Current reward text |
+| `GetRewardXP` | scalar number/nil | Current reward XP |
+| `IsQuestCompletable` | scalar boolean/nil | Current progress state |
+| `GetNumQuestChoices` | scalar number | Current choice reward count |
+| `C_QuestLog.GetMaxNumQuestsCanAccept` | scalar number | Quest log cap |
+| `GetServerTime` | scalar number | Low-frequency snapshot |
+| `GetQuestResetTime` | scalar number | Low-frequency reset snapshot |
+| `GetNumSkillLines` | scalar number | Visible skill row count |
+| `GetProfessions` | tuple (n=5) | Profession tab indices |
+| `QuestLog` | object number[] | Synthetic active quest IDs in quest-log order |
+| `FactionOrder` | object number[] | Synthetic faction IDs in display order |
+| `SpellBook` | object number[] | Synthetic ordered known spell IDs from slots |
 
 ### Parameterized by `"player"`
 
@@ -322,6 +367,7 @@ Called with `"player"` as the argument.
 | `UnitLevel` | scalar number | Player level |
 | `UnitRace` | tuple (n=3) | localizedName, englishName, raceID |
 | `UnitClass` | tuple (n=3) | localizedName, englishName, classID |
+| `UnitClassBase` | tuple (n=2) | classFilename, classID |
 | `UnitSex` | scalar number | Sex ID |
 | `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar number | Map ID |
@@ -334,11 +380,30 @@ Called with a quest ID as the argument.
 | Function key | Return type | Description |
 |---|---|---|
 | `IsQuestComplete` | scalar boolean | Whether quest is completable |
+| `HaveQuestData` | scalar boolean/nil | Quest cache availability |
+| `C_QuestLog.IsOnQuest` | scalar boolean/nil | Whether quest is in log; false tombstone on removal |
 | `C_QuestLog.IsQuestFlaggedCompleted` | scalar boolean | Whether quest is flagged complete |
 | `C_QuestLog.GetQuestObjectives` | object (table[]) | Array of objective info objects |
 | `GetQuestLogTitle` | tuple (n=17) | title, level, suggestedGroup, isHeader, ... |
 | `GetQuestLogQuestText` | tuple (n=2) | questDescription, questObjectives |
+| `GetQuestTimers` | scalar number/nil | Derived questId-keyed seconds-left |
+| `GetQuestLogTimeLeft` | scalar number/nil | Derived questId-keyed seconds-left |
+| `GetNumQuestLogRewards` | scalar number/nil | Reward count |
+| `GetQuestLogRewardMoney` | scalar number/nil | Reward money |
 | `GetQuestTagInfo` | tuple (n varies) | Tag info |
+
+### Nested parameterized by native arguments
+
+| Function key | Shape | Return type | Description |
+|---|---|---|---|
+| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Reward item tuple; tombstoned when stale |
+
+### Parameterized by greeting index
+
+| Function key | Return type | Description |
+|---|---|---|
+| `GetActiveTitle` | tuple (n=2) | title, isComplete |
+| `GetAvailableTitle` | scalar string/nil | available quest title |
 
 ### Parameterized by unit token (string: `"target"`, `"npc"`, `"questnpc"`)
 
@@ -355,6 +420,16 @@ Called with a quest ID as the argument.
 | `GetLootSourceInfo` | tuple (n=2) or nil | Source GUID, quantity |
 | `GetLootSlotLink` | scalar string or nil | Item link |
 | `GetLootSlotType` | scalar number or nil | Loot type enum |
+| `GetSpellBookItemName` | tuple (n=3) or nil | spellName, spellSubName, spellID |
+| `GetSpellBookItemInfo` | tuple (n=2) or nil | spellType, id |
+| `IsPassiveSpell` | scalar number/nil | passive spell marker |
+
+### Parameterized by skill/profession index (number)
+
+| Function key | Return type | Description |
+|---|---|---|
+| `GetSkillLineInfo` | tuple (n=13) | Visible skill row information |
+| `GetProfessionInfo` | tuple (n=10) | Profession tab information |
 
 ### Parameterized by faction ID (number)
 
@@ -367,6 +442,7 @@ Called with a quest ID as the argument.
 | Function key | Description |
 |---|---|
 | `GetQuestsCompleted` | Set of completed quest IDs (see section 5) |
+| `PlayerKnownSpells` | Set of known spell IDs discovered from spellbook slots |
 
 ---
 

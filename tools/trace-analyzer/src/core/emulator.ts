@@ -1,5 +1,5 @@
 // ============================================================
-// Emulation engine — port of FUNCTION_EMULATION_SPEC v8
+// Emulation engine — port of FUNCTION_EMULATION_SPEC v9
 //
 // Reconstructs WoW API function outputs at a target time `t`
 // from QuestLogTrace session data.
@@ -9,13 +9,13 @@ import type {
   SessionRecord,
   FunctionStream,
   FunctionStreamEntry,
+  FunctionStreamMap,
   EventEntry,
   PackedArgs,
 } from "./types.js";
 
 /**
- * Detect if a function stream is parameterless (flat array)
- * or parameterized (record of param → entries).
+ * Detect if a function stream node is a leaf stream array.
  */
 export function isParameterless(
   stream: FunctionStream
@@ -24,8 +24,8 @@ export function isParameterless(
 }
 
 /**
- * Get the list of parameter keys for a parameterized stream.
- * Returns empty array for parameterless streams.
+ * Get the list of parameter keys for a parameterized stream node.
+ * Returns empty array for leaf stream arrays.
  */
 export function getParamKeys(stream: FunctionStream): string[] {
   if (Array.isArray(stream)) return [];
@@ -33,25 +33,30 @@ export function getParamKeys(stream: FunctionStream): string[] {
 }
 
 /**
- * Get the entry array for a function, optionally with a parameter.
+ * Get the leaf entry array for a function stream.
+ *
+ * Parameters are walked in native API argument order. This preserves existing
+ * one-level lookups while also supporting nested streams such as
+ * `functions["GetQuestLogRewardInfo"][rewardIndex][questId]`.
  */
 export function getStream(
   session: SessionRecord,
   name: string,
-  param?: string | number
+  ...params: Array<string | number>
 ): FunctionStreamEntry[] | undefined {
-  const fn = session.functions[name];
-  if (!fn) return undefined;
+  let node: FunctionStream | undefined = session.functions[name];
+  if (!node) return undefined;
 
-  if (param !== undefined) {
-    if (Array.isArray(fn)) return undefined;
-    const paramMap = fn as Record<string | number, FunctionStreamEntry[]>;
-    // Try the param as given, then as string (lua-state uses string keys)
-    return paramMap[param] ?? paramMap[String(param)];
+  for (const param of params) {
+    if (Array.isArray(node)) return undefined;
+    const paramMap = node as FunctionStreamMap;
+    // Lua table keys are normalized to strings by the loader.
+    node = paramMap[String(param)];
+    if (!node) return undefined;
   }
 
-  if (Array.isArray(fn)) return fn;
-  return undefined;
+  // A parameterized map without all required params is not a readable stream.
+  return Array.isArray(node) ? node : undefined;
 }
 
 /**

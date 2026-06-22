@@ -263,8 +263,7 @@ local function EnsureSavedVariables()
   end
 
   QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
-  -- QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
-  QuestLogTraceCharacter.sessions = {}
+  QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
 end
 
 --- Remove oldest sessions if the count exceeds the configured maximum.
@@ -304,6 +303,29 @@ function Core.GetStatusData()
     eventCount = capture.session and #capture.session.events or 0,
     canSave = capture.session ~= nil and not capture.active,
   }
+end
+
+--- Return the live or newest saved session for external diagnostics.
+---
+--- This is intended for read-only bridge/testing inspection. The returned
+--- session table is the actual live/saved table, not a defensive copy; callers
+--- MUST treat it as read-only by convention.
+---@return SessionRecord? session The active/stopped unsaved session, newest saved session, or nil.
+---@return "active"|"stopped_unsaved"|"saved"|"none" source Where the session came from.
+function Core.GetDiagnosticSession()
+  if capture.session then
+    return capture.session, capture.active and "active" or "stopped_unsaved"
+  end
+
+  local characterDb = QuestLogTraceCharacter
+  if type(characterDb) == "table" and type(characterDb.sessions) == "table" then
+    local session = characterDb.sessions[#characterDb.sessions]
+    if type(session) == "table" then
+      return session, "saved"
+    end
+  end
+
+  return nil, "none"
 end
 
 ---------------------------------------------------------------------------

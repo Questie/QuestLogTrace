@@ -60,7 +60,7 @@ capture = {
   startedAt       = 100000.0,   -- GetTime() at capture start (absolute)
   startedAtPrecise = 4821.312,  -- GetTimePreciseSec() at capture start (absolute)
   session         = {           -- the SessionRecord being built
-    schemaVersion  = 8,
+    schemaVersion  = 9,
     name           = "session-name" or nil,
     startedAt      = 100000.0,
     startedAtPrecise = 4821.312,
@@ -211,17 +211,19 @@ everything to nil/0 on `LOOT_CLOSED`.
 
 | Tracker | File | Functions | Trigger | Events |
 |---|---|---|---|---|
-| PlayerIdentity | `Trackers/PlayerIdentity.lua` | `UnitRace["player"]`, `UnitClass["player"]`, `UnitSex["player"]`, `UnitFactionGroup["player"]` | Init only (t=0) | None |
+| PlayerIdentity | `Trackers/PlayerIdentity.lua` | `UnitRace["player"]`, `UnitClass["player"]`, `UnitClassBase["player"]`, `UnitSex["player"]`, `UnitFactionGroup["player"]` | Init only (t=0) | None |
 | UnitLevel | `Trackers/UnitLevel.lua` | `UnitLevel["player"]`, `GetQuestGreenRange` | Event-driven | `PLAYER_LEVEL_UP`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
-| Position | `Trackers/Position.lua` | `GetZoneText`, `GetSubZoneText`, `GetRealZoneText`, `C_Map.GetBestMapForUnit["player"]`, `C_Map.GetPlayerMapPosition["player"]`, `IsInInstance`, `GetInstanceInfo` | Timer (0.2s) + event-driven + private frame | `ZONE_CHANGED`, `ZONE_CHANGED_NEW_AREA`, `ZONE_CHANGED_INDOORS`, `PLAYER_ENTERING_WORLD`, `PLAYER_ALIVE`, `MAP_EXPLORATION_UPDATED`, `PLAYER_MAP_CHANGED`, `AREA_POIS_UPDATED`, `NEW_WMO_CHUNK`, `SPELLS_CHANGED` + private: `PLAYER_STARTED_MOVING`, `PLAYER_STOPPED_MOVING` |
-| Loot | `Trackers/Loot.lua` | `GetNumLootItems`, `GetLootSlotInfo[slot]`, `GetLootSourceInfo[slot]`, `GetLootSlotLink[slot]`, `GetLootSlotType[slot]` | Event + window lifecycle | `LOOT_READY` (sample), `LOOT_CLOSED` (reset) |
+| Position | `Trackers/Position.lua` | `GetZoneText`, `GetSubZoneText`, `GetRealZoneText`, `C_Map.GetBestMapForUnit["player"]`, `C_Map.GetPlayerMapPosition["player"]`, `IsInInstance`, `GetInstanceInfo` | Timer (0.2s) + event-driven + private movement sampling | zone/map events + `PLAYER_ENTERING_WORLD`, `PLAYER_ALIVE`, `SPELLS_CHANGED`; movement events are private sampling triggers and are not recorded globally |
+| Loot | `Trackers/Loot.lua` | `GetNumLootItems`, `GetLootSlotInfo[slot]`, `GetLootSourceInfo[slot]`, `GetLootSlotLink[slot]`, `GetLootSlotType[slot]` | Event + window lifecycle | `LOOT_READY`, `LOOT_CLOSED` |
 | Reputation | `Trackers/Reputation.lua` | `FactionOrder`, `GetFactionInfoByID[factionID]` | Event + index iteration | `CHAT_MSG_COMBAT_FACTION_CHANGE`, `UPDATE_FACTION`, `QUEST_TURNED_IN`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
-| QuestLog | `Trackers/QuestLog.lua` | `QuestLog`, `IsQuestComplete[qid]`, `C_QuestLog.IsQuestFlaggedCompleted[qid]`, `C_QuestLog.GetQuestObjectives[qid]`, `GetQuestLogTitle[qid]`, `GetQuestLogQuestText[qid]`, `GetQuestTagInfo[qid]` | Event + delayed re-samples + index iteration | 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` (see EVENT_CATALOG) |
+| QuestLog | `Trackers/QuestLog.lua` | `QuestLog`, `C_QuestLog.GetMaxNumQuestsCanAccept`, `IsQuestComplete[qid]`, `HaveQuestData[qid]`, `C_QuestLog.IsOnQuest[qid]`, `C_QuestLog.IsQuestFlaggedCompleted[qid]`, `C_QuestLog.GetQuestObjectives[qid]`, `GetQuestLogTitle[qid]`, `GetQuestLogQuestText[qid]`, timer streams, reward streams, `GetQuestTagInfo[qid]` | Event + delayed re-samples + index iteration | 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | CompletedQuests | `Trackers/CompletedQuests.lua` | `GetQuestsCompleted` (functionsDelta) | Event + delayed re-samples | Same 14 quest events + `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
-| UnitInteraction | `Trackers/UnitInteraction.lua` | `UnitGUID["target","npc","questnpc"]`, `UnitName["target","npc","questnpc"]`, `C_GossipInfo.GetAvailableQuests`, `C_GossipInfo.GetActiveQuests` | Event-driven | `PLAYER_TARGET_CHANGED`, 8 quest dialog, `QUEST_ACCEPTED`, `QUEST_TURNED_IN`, `LOOT_OPENED`, 22 npc_interaction, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` (37 total) |
+| UnitInteraction | `Trackers/UnitInteraction.lua` | `UnitGUID`/`UnitName` for `target`, `npc`, `questnpc`; `C_GossipInfo.GetAvailableQuests`; `C_GossipInfo.GetActiveQuests` | Event-driven fixed unit-token fanout | target, quest dialog, selected quest state, loot-open, NPC interaction, login-time events |
 | GroupState | `Trackers/GroupState.lua` | `IsInGroup`, `GetNumGroupMembers` | Event-driven | `GROUP_JOINED`, `GROUP_LEFT`, `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | SkillLines | `Trackers/SkillLines.lua` | `GetNumSkillLines`, `GetSkillLineInfo[index]`, `GetProfessions`, `GetProfessionInfo[index]` | Event + index iteration | `SKILL_LINES_CHANGED`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | SpellBook | `Trackers/SpellBook.lua` | `SpellBook`, `GetSpellBookItemName[slot]`, `GetSpellBookItemInfo[slot]`, `IsPassiveSpell[slot]`, `PlayerKnownSpells` (functionsDelta) | Event + slot iteration | `SPELLS_CHANGED`, `PLAYER_ENTERING_WORLD` |
+| QuestDialog | `Trackers/QuestDialog.lua` | Gossip, greeting, and current quest-dialog APIs | Event + delayed re-samples + close-state resets | `QUEST_DETAIL`, `QUEST_PROGRESS`, `QUEST_COMPLETE`, `QUEST_FINISHED`, `QUEST_GREETING`, `QUEST_ACCEPT_CONFIRM`, `GOSSIP_SHOW`, `GOSSIP_CLOSED` |
+| ResetTime | `Trackers/ResetTime.lua` | `GetServerTime`, `GetQuestResetTime` | Init + low-frequency event snapshots | `PLAYER_LOGIN`, `PLAYER_ENTERING_WORLD`, `PLAYER_LOGOUT` |
 
 ---
 
@@ -290,7 +292,33 @@ re-sampling is needed.
 
 ---
 
-## 9) Change detection
+## 10) QuestLog Questie replay streams
+
+The QuestLog tracker retains the existing active quest-log streams and adds Questie-oriented replay streams. `GetQuestLogQuestText[questId]` remains captured alongside current quest dialog text streams; they are different APIs.
+
+Timer streams are derived compatibility streams. The native Classic API exposes `GetQuestTimers()` as timer slots, then `GetQuestIndexForTimer(timerIndex)` maps a slot to a quest-log index. The tracker resolves that index to a quest ID and records both `GetQuestTimers[questId]` and `GetQuestLogTimeLeft[questId]` as seconds-left values. When a previously timed quest disappears from the timer mapping, both streams receive nil tombstones.
+
+Reward streams are quest-scoped except `GetQuestLogRewardInfo`, which is a true two-argument API and is stored in native argument order as `functions["GetQuestLogRewardInfo"][rewardIndex][questId]`. When reward counts shrink or a quest leaves the log, reward count, reward money, and reward-info streams receive nil tombstones to avoid stale replay values.
+
+---
+
+## 11) QuestDialog tracker behavior
+
+The QuestDialog tracker captures transient gossip, greeting, and current quest dialog APIs used by replay consumers. It is separate from UnitInteraction because it records dialog state, not unit identity. It uses safe `pcall` wrappers and the standard delayed re-sample schedule. Close events (`GOSSIP_CLOSED`, `QUEST_FINISHED`) write deterministic inactive values and invalidate pending delayed reads.
+
+Sampled parameterless streams include `C_GossipInfo.GetNumAvailableQuests`, `C_GossipInfo.GetNumActiveQuests`, `C_GossipInfo.GetText`, `C_GossipInfo.GetOptions`, legacy gossip count/list globals, greeting text/counts, current quest title/text/objective/progress/reward APIs, `GetRewardXP`, `IsQuestCompletable`, and `GetNumQuestChoices`.
+
+Indexed streams are `GetActiveTitle[index]` as a packed `{ title, isComplete, n = 2 }` tuple and `GetAvailableTitle[index]` as a scalar title. Stale indices are reset to nil when counts shrink.
+
+---
+
+## 12) ResetTime tracker behavior
+
+The ResetTime tracker samples `GetServerTime` and `GetQuestResetTime` at capture start and on `PLAYER_LOGIN`, `PLAYER_ENTERING_WORLD`, and `PLAYER_LOGOUT`. These are low-frequency snapshots; replay consumers that need continuously increasing server time or countdown behavior should derive those values from the nearest snapshot and replay time.
+
+---
+
+## 13) Change detection
 
 Trackers only append entries when values change. The comparison method
 depends on the value type:

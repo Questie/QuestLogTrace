@@ -17,10 +17,12 @@ Trackers/Loot.lua
 Trackers/Reputation.lua
 Trackers/QuestLog.lua
 Trackers/CompletedQuests.lua
+Trackers/QuestDialog.lua
 Trackers/UnitInteraction.lua
 Trackers/GroupState.lua
 Trackers/SkillLines.lua
 Trackers/SpellBook.lua
+Trackers/ResetTime.lua
 
 Dumps/MapHierarchy.lua
 

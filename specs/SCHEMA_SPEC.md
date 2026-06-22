@@ -74,7 +74,7 @@ SessionRecord = {
 
 No `summary` block — consumers derive counts from the data.
 No `player` block — player identity is stored as function streams
-(`UnitRace`, `UnitClass`, `UnitSex`).
+(`UnitRace`, `UnitClass`, `UnitClassBase`, `UnitSex`, `UnitFactionGroup`).
 
 ---
 
@@ -115,8 +115,10 @@ back if needed.
 
 ## 5) Function streams
 
-All tracked WoW API return values are stored in `functions`. Two formats
-exist, distinguished by the parser automatically.
+All tracked WoW API return values are stored in `functions`. Streams are
+either flat arrays for parameterless APIs or argument-keyed maps for
+parameterized APIs. True multi-argument APIs use nested argument-keyed maps in
+native API argument order until the final value is a `{t, tp, v}` array.
 
 ### Parameterless — flat array
 
@@ -138,30 +140,38 @@ exist, distinguished by the parser automatically.
 }
 ```
 
+### Nested parameterized — keyed by native argument order
+
+```lua
+["GetQuestLogRewardInfo"] = {
+  [1] = { -- rewardIndex
+    [783] = { -- questId
+      { t = 0.000, tp = 0.00020, v = { "Reward", 134400, 1, 1, true, 12345, 10, n = 7 } },
+    },
+  },
+}
+```
+
 ### Parser detection
 
-If the first entry in the table has a `t` field, it is a flat
-(parameterless) stream. Otherwise, the keys are argument values and each
-value is a `{t, tp, v}` array.
+If the first entry in a table has a `t` field, that table is a leaf stream
+array. Otherwise, keys are argument values and consumers should recurse until a
+leaf stream array is reached. The TypeScript analyzer normalizes Lua tables
+first, then treats arrays as leaf streams and objects as parameter maps.
 
-### Change-only
+### Sampling cadence and change detection
 
-Entries are appended only when the value changes. The first entry is
-always the full value at `t=0` (capture start). The latest entry before
-a target time is the current value at that time.
+Most streams append entries only when values change. Streams known at capture
+start include an initial value at `t=0`; parameterized streams for later
+discovered keys, such as newly accepted quest IDs, can begin after `t=0`. The
+latest entry before a target time is the current recorded value.
 
 ### `nil` is a valid value
 
-When a function returns `nil`, that is stored as a change. This is how
-transient-window APIs (e.g. loot functions between `LOOT_READY` and
-`LOOT_CLOSED`) return to their inactive state.
-
-**Nil serialization note.** When code stores `{ t = t, tp = tp, v = nil }`,
-Lua serialization omits the `v` key entirely. After deserialization, the
-entry appears as `{ t = ..., tp = ... }` with no `v` field. This is
-transparent to consumers because `entry.v == nil` evaluates to `true`
-regardless of whether the key exists or was omitted. The emulation
-algorithm handles this correctly with no special handling needed.
+When a function returns `nil`, that is stored as a change. Lua serialization
+omits `v = nil`, so a saved entry with no `v` field means the function returned
+nil at that timestamp. Consumers MUST treat a missing `v` field as a stored nil
+value, not as missing data.
 
 ---
 
@@ -225,10 +235,9 @@ All tuple-returning functions MUST have `n` on every stored value.
 
 ## 9) Complete function catalog
 
-> **API vs synthetic keys.** Most function keys in the tables below are
-> direct WoW API names (e.g. `GetZoneText`, `UnitLevel`). Some keys are
-> **synthetic** -- they are computed by our trackers rather than matching a
-> single WoW API function. These are marked with *(synthetic)* below.
+> **API vs synthetic/derived keys.** Most keys are direct WoW API names.
+> Synthetic keys are computed by trackers. Derived compatibility streams use a
+> WoW API-like name but store a replay-friendly shape.
 
 ### Parameterless
 
@@ -245,11 +254,34 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `GetNumSkillLines` | scalar (number) | visible skill rows after header expansion |
 | `GetQuestGreenRange` | scalar (number) | XP threshold; changes with player level |
 | `GetProfessions` | tuple (n=5) | profession tab indices; nil in missing tuple slots |
-| `C_GossipInfo.GetAvailableQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
-| `C_GossipInfo.GetActiveQuests` | object (GossipQuestUIInfo[]) | Sampled on GOSSIP_SHOW only |
-| `QuestLog` | object (number[]) | *(synthetic)* Computed by iterating GetQuestLogTitle, not a WoW API function |
-| `FactionOrder` | object (number[]) | *(synthetic)* Computed by iterating GetFactionInfo and expanding headers, not a WoW API function |
-| `SpellBook` | object (number[]) | *(synthetic)* Ordered unique spell IDs discovered by slot enumeration |
+| `C_GossipInfo.GetAvailableQuests` | object (GossipQuestUIInfo[]) | UnitInteraction; sampled on gossip/dialog events |
+| `C_GossipInfo.GetActiveQuests` | object (GossipQuestUIInfo[]) | UnitInteraction; sampled on gossip/dialog events |
+| `C_GossipInfo.GetNumAvailableQuests` | scalar (number) | QuestDialog; when API exists |
+| `C_GossipInfo.GetNumActiveQuests` | scalar (number) | QuestDialog; when API exists |
+| `C_GossipInfo.GetText` | scalar (string/nil) | QuestDialog; when API exists |
+| `C_GossipInfo.GetOptions` | object (GossipOptionUIInfo[]) | QuestDialog; when API exists |
+| `GetNumGossipAvailableQuests` | scalar (number) | Legacy gossip API |
+| `GetNumGossipActiveQuests` | scalar (number) | Legacy gossip API |
+| `GetGossipAvailableQuests` | tuple (n varies) | Legacy raw repeated 7-tuples |
+| `GetGossipActiveQuests` | tuple (n varies) | Legacy raw repeated 6-tuples |
+| `GetGreetingText` | scalar (string/nil) | Quest greeting text |
+| `GetNumActiveQuests` | scalar (number) | Quest greeting active count |
+| `GetNumAvailableQuests` | scalar (number) | Quest greeting available count |
+| `GetQuestID` | scalar (number) | Current quest dialog ID; often 0 outside dialog |
+| `GetTitleText` | scalar (string/nil) | Current quest dialog title |
+| `GetQuestText` | scalar (string/nil) | Current quest detail text |
+| `GetObjectiveText` | scalar (string/nil) | Current objective text |
+| `GetProgressText` | scalar (string/nil) | Current progress text |
+| `GetRewardText` | scalar (string/nil) | Current reward text |
+| `GetRewardXP` | scalar (number/nil) | Current quest reward XP |
+| `IsQuestCompletable` | scalar (boolean/nil) | Current quest progress state |
+| `GetNumQuestChoices` | scalar (number) | Current reward choice count |
+| `C_QuestLog.GetMaxNumQuestsCanAccept` | scalar (number) | Captured when API exists |
+| `GetServerTime` | scalar (number) | Low-frequency snapshot |
+| `GetQuestResetTime` | scalar (number) | Low-frequency reset snapshot |
+| `QuestLog` | object (number[]) | *(synthetic)* active quest IDs in quest-log order |
+| `FactionOrder` | object (number[]) | *(synthetic)* known faction IDs in display order |
+| `SpellBook` | object (number[]) | *(synthetic)* ordered unique spell IDs from slot enumeration |
 
 ### Parameterized by `"player"`
 
@@ -258,6 +290,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `UnitLevel` | scalar (number) | |
 | `UnitRace` | tuple (n=3) | localizedName, englishName, raceID |
 | `UnitClass` | tuple (n=3) | localizedName, englishName, classID |
+| `UnitClassBase` | tuple (n=2) | classFilename, classID; captured when API exists |
 | `UnitSex` | scalar (number) | |
 | `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar (number) | map ID |
@@ -268,11 +301,30 @@ All tuple-returning functions MUST have `n` on every stored value.
 | Function key | Return type | Notes |
 |---|---|---|
 | `IsQuestComplete` | scalar (boolean) | |
+| `HaveQuestData` | scalar (boolean/nil) | Captured when API exists |
+| `C_QuestLog.IsOnQuest` | scalar (boolean/nil) | Explicit false tombstone when quest leaves log |
 | `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean) | |
 | `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]) | |
-| `GetQuestLogTitle` | tuple (n=17) | |
+| `GetQuestLogTitle` | tuple (n=17) | Stored by quest ID after resolving current quest log index |
 | `GetQuestLogQuestText` | tuple (n=2) | questDescription, questObjectives |
+| `GetQuestTimers` | scalar (number/nil) | *(derived compatibility)* questId-keyed seconds-left from native timer slots |
+| `GetQuestLogTimeLeft` | scalar (number/nil) | *(derived compatibility)* same seconds-left value, no selection side effects |
+| `GetNumQuestLogRewards` | scalar (number/nil) | Reward count; tombstoned on removal |
+| `GetQuestLogRewardMoney` | scalar (number/nil) | Reward money; tombstoned on removal |
 | `GetQuestTagInfo` | tuple (n varies) | |
+
+### Nested parameterized by native arguments
+
+| Function key | Shape | Return type | Notes |
+|---|---|---|---|
+| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Native argument order; reward indices tombstoned when counts shrink or quest leaves log |
+
+### Parameterized by greeting index
+
+| Function key | Return type | Notes |
+|---|---|---|
+| `GetActiveTitle` | tuple (n=2) | title, isComplete |
+| `GetAvailableTitle` | scalar (string/nil) | title; stale indices reset to nil |
 
 ### Parameterized by unit token (`"target"`, `"npc"`, `"questnpc"`)
 
@@ -310,7 +362,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 
 | Function key | Notes |
 |---|---|
-| `GetQuestsCompleted` | Only grows (remove absent in practice) |
+| `GetQuestsCompleted` | Completed quest IDs; only grows in practice |
 | `PlayerKnownSpells` | Known player spell IDs discovered by enumerating spellbook slots |
 
 ---

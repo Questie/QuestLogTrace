@@ -36,6 +36,21 @@ Triggers `GetQuestsCompleted` delta capture. Uses the same 14 quest events
 as the QuestLog tracker plus the two login-time sampling events, with the
 same delayed re-sample schedule.
 
+### QuestDialog tracker
+
+Captures transient gossip, greeting, and current quest dialog APIs. Uses delayed
+re-samples to catch UI/server state settling and writes inactive tombstones on
+close/finish events.
+
+- `QUEST_DETAIL`
+- `QUEST_PROGRESS`
+- `QUEST_COMPLETE`
+- `QUEST_FINISHED`
+- `QUEST_GREETING`
+- `QUEST_ACCEPT_CONFIRM`
+- `GOSSIP_SHOW`
+- `GOSSIP_CLOSED`
+
 ### Loot tracker
 
 Triggers loot function sampling on open, resets to nil/0 on close.
@@ -55,8 +70,9 @@ Triggers `UnitLevel("player")` sampling.
 
 Triggers position function sampling (in addition to 0.2s timer).
 Also registers a private event frame for `PLAYER_STARTED_MOVING` and
-`PLAYER_STOPPED_MOVING` — these trigger sampling but are NOT recorded
-in the event stream (avoids spam).
+`PLAYER_STOPPED_MOVING` so position is sampled immediately on movement
+transitions. These movement events are intentionally not recorded in the main
+event stream to avoid trace noise.
 
 - `ZONE_CHANGED`
 - `ZONE_CHANGED_NEW_AREA`
@@ -163,13 +179,21 @@ profession tabs in Classic Era.
 - `SPELLS_CHANGED`
 - `PLAYER_ENTERING_WORLD` *(login-time sampling)*
 
+### ResetTime tracker
+
+Captures low-frequency server/reset time snapshots.
+
+- `PLAYER_LOGIN`
+- `PLAYER_ENTERING_WORLD`
+- `PLAYER_LOGOUT`
+
 ### PlayerIdentity tracker
 
 No events. Sampled once at capture start (`t=0`).
 
 ---
 
-## Events recorded but not routed to trackers
+## Additional recorded event categories
 
 ### Initialization
 
@@ -177,19 +201,19 @@ Events related to addon loading, login, and logout. `ADDON_LOADED` is
 filtered so only the addon's own load event is recorded in the stream.
 
 - `ADDON_LOADED` (filtered: only recorded when `addonName == "QuestLogTrace"`)
-- `PLAYER_LOGOUT`
+- `PLAYER_LOGOUT` *(also ResetTime + auto-save handling)*
 - `PLAYER_LEAVING_WORLD`
 - `LOADING_SCREEN_DISABLED`
 
-These events are captured in the event stream for replay/analysis but
-do not trigger any tracker sampling.
+These events are captured in the event stream for replay/analysis. Some also
+trigger lifecycle trackers such as ResetTime or auto-start/auto-save handling.
 
 Note: `SPELLS_CHANGED` was previously in this section but is now routed
 to trackers for login-time data sampling (see tracker sections above).
 
 ### Player state
 
-- `PLAYER_LOGIN`
+- `PLAYER_LOGIN` *(also ResetTime + auto-start handling)*
 - `MODIFIER_STATE_CHANGED`
 - `PLAYER_REGEN_DISABLED`
 - `PLAYER_REGEN_ENABLED`
@@ -242,8 +266,9 @@ to trackers for login-time data sampling (see tracker sections above).
 - Some events are routed to trackers AND recorded in the event stream.
   For example, `QUEST_TURNED_IN` appears in both the event stream and
   triggers the QuestLog, CompletedQuests, Reputation, and UnitInteraction
-  trackers. Quest dialog events and `PLAYER_TARGET_CHANGED` are now also
-  routed to the UnitInteraction tracker.
+  trackers. Quest dialog events now also route to QuestDialog and UnitInteraction.
+  Position movement transitions are private sampling triggers and are not
+  recorded in the main event stream.
 - `LOOT_OPENED` and `LOOT_READY` are different events. The Loot tracker
   uses `LOOT_READY` (fires when loot data is available), not `LOOT_OPENED`
   (fires when the loot UI opens, data may not be ready).

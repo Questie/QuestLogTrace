@@ -47,11 +47,20 @@ export interface DeltaStream {
 /**
  * A function stream is either:
  * - Parameterless: a flat array of FunctionStreamEntry
- * - Parameterized: a record mapping param key → array of FunctionStreamEntry
+ * - Parameterized: a record mapping param key → FunctionStream
+ *
+ * Multi-argument APIs use nested parameterized records in native argument order,
+ * ending at a FunctionStreamEntry[] leaf. One-level streams remain the common
+ * case; the recursive shape exists so two-argument APIs such as
+ * `GetQuestLogRewardInfo(rewardIndex, questId)` can be represented without
+ * composite string keys.
  */
-export type FunctionStream =
-  | FunctionStreamEntry[]
-  | Record<string | number, FunctionStreamEntry[]>;
+export interface FunctionStreamMap {
+  /** Lua table keys are normalized to strings by the loader. */
+  [key: string]: FunctionStream;
+}
+
+export type FunctionStream = FunctionStreamEntry[] | FunctionStreamMap;
 
 /** A complete session recording */
 export interface SessionRecord {
@@ -96,8 +105,9 @@ export type EventCategory =
   | "loot"
   | "combat"
   | "chat"
-  | "movement"
   | "target"
   | "zone"
   | "inventory"
+  | "npc"
+  | "init"
   | "other";

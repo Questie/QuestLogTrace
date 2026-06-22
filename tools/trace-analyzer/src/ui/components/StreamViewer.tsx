@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import type { SessionRecord, FunctionStreamEntry } from "../../core/types.js";
+import type { SessionRecord, FunctionStream, FunctionStreamEntry, FunctionStreamMap } from "../../core/types.js";
 import {
   isParameterless,
   getParamKeys,
@@ -255,10 +255,123 @@ function DeltaViewer({
   );
 }
 
+function streamPathKey(functionName: string, params: string[]): string {
+  return [functionName, ...params].join("\u0000");
+}
+
+function streamDisplayName(functionName: string, params: string[]): string {
+  return `${functionName}${params.map((param) => `[${param}]`).join("")}`;
+}
+
+function samePath(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) return false;
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false;
+  }
+  return true;
+}
+
+/** Sorts Lua table keys in the order users expect for numeric params. */
+function compareParamKeys(left: string, right: string): number {
+  const leftNumber = Number(left);
+  const rightNumber = Number(right);
+  const leftIsNumeric = left.trim() !== "" && Number.isFinite(leftNumber);
+  const rightIsNumeric = right.trim() !== "" && Number.isFinite(rightNumber);
+
+  if (leftIsNumeric && rightIsNumeric && leftNumber !== rightNumber) {
+    return leftNumber - rightNumber;
+  }
+  return left.localeCompare(right);
+}
+
+/**
+ * Renders one node in the function stream tree.
+ *
+ * Parameter maps are expandable groups. Only leaf arrays can be selected for
+ * value lookup/history, which keeps nested parameter streams compatible with the
+ * existing one-level stream viewer behavior.
+ */
+function StreamTreeNode({
+  functionName,
+  node,
+  params,
+  depth,
+  currentTime,
+  selectedKey,
+  selectedParams,
+  expandedKeys,
+  onToggle,
+  onSelect,
+}: {
+  functionName: string;
+  node: FunctionStream;
+  params: string[];
+  depth: number;
+  currentTime: number;
+  selectedKey: string | null;
+  selectedParams: string[];
+  expandedKeys: Set<string>;
+  onToggle: (pathKey: string) => void;
+  onSelect: (functionName: string, params: string[]) => void;
+}) {
+  const indent = "  ".repeat(depth);
+
+  if (isParameterless(node)) {
+    const isSelected = selectedKey === functionName && samePath(selectedParams, params);
+    const val = valueAt(node, currentTime);
+    // Leaf rows show only their final param; the detail header shows the full path.
+    const lastParam = params.length > 0 ? `${indent}[${params[params.length - 1]}]` : undefined;
+    return (
+      <StreamItem
+        key={streamPathKey(functionName, params)}
+        name={functionName}
+        param={lastParam}
+        selected={isSelected}
+        entryCount={node.length}
+        currentValue={formatValue(val !== undefined ? emulate(val) : undefined)}
+        onClick={() => onSelect(functionName, params)}
+      />
+    );
+  }
+
+  const pathKey = streamPathKey(functionName, params);
+  // Preserve numeric API argument order for params like rewardIndex before questId.
+  const childKeys = getParamKeys(node).sort(compareParamKeys);
+  const isExpanded = expandedKeys.has(pathKey);
+  const label = params.length === 0 ? functionName : `${indent}[${params[params.length - 1]}]`;
+
+  return (
+    <div key={pathKey}>
+      <div className="stream-item stream-group" onClick={() => onToggle(pathKey)}>
+        <span className="stream-name">
+          {isExpanded ? "\u25BE" : "\u25B8"} {label}
+        </span>
+        <span className="stream-count">{childKeys.length} params</span>
+      </div>
+      {isExpanded &&
+        childKeys.map((param) => (
+          <StreamTreeNode
+            key={streamPathKey(functionName, [...params, param])}
+            functionName={functionName}
+            node={(node as FunctionStreamMap)[param]}
+            params={[...params, param]}
+            depth={depth + 1}
+            currentTime={currentTime}
+            selectedKey={selectedKey}
+            selectedParams={selectedParams}
+            expandedKeys={expandedKeys}
+            onToggle={onToggle}
+            onSelect={onSelect}
+          />
+        ))}
+    </div>
+  );
+}
+
 export function StreamViewer({ session, currentTime, onSeek }: StreamViewerProps) {
   const [filter, setFilter] = useState("");
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
-  const [selectedParam, setSelectedParam] = useState<string | undefined>();
+  const [selectedParams, setSelectedParams] = useState<string[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
 
   // Build the list of function keys
@@ -269,25 +382,30 @@ export function StreamViewer({ session, currentTime, onSeek }: StreamViewerProps
     return keys.filter((k) => k.toLowerCase().includes(lowerFilter));
   }, [session.functions, filter]);
 
-  const toggleExpand = (key: string) => {
+  const toggleExpand = (pathKey: string) => {
     setExpandedKeys((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(pathKey)) next.delete(pathKey);
+      else next.add(pathKey);
       return next;
     });
   };
 
-  const selectStream = (key: string, param?: string) => {
+  const selectStream = (key: string, params: string[] = []) => {
     setSelectedKey(key);
-    setSelectedParam(param);
+    setSelectedParams(params);
   };
+
+  const selectedPathKey = useMemo(
+    () => (selectedKey ? streamPathKey(selectedKey, selectedParams) : ""),
+    [selectedKey, selectedParams]
+  );
 
   // Get the currently selected stream
   const selectedStream = useMemo(() => {
     if (!selectedKey) return undefined;
-    return getStream(session, selectedKey, selectedParam);
-  }, [session, selectedKey, selectedParam]);
+    return getStream(session, selectedKey, ...selectedParams);
+  }, [session, selectedKey, selectedPathKey]);
 
   const currentVal = useMemo(() => {
     if (!selectedStream) return undefined;
@@ -318,65 +436,21 @@ export function StreamViewer({ session, currentTime, onSeek }: StreamViewerProps
           onChange={(e) => setFilter(e.target.value)}
         />
         <div className="stream-list-items">
-          {functionKeys.map((key) => {
-            const fn = session.functions[key];
-            if (isParameterless(fn)) {
-              const isSelected =
-                selectedKey === key && selectedParam === undefined;
-              const val = valueAt(fn, currentTime);
-              return (
-                <StreamItem
-                  key={key}
-                  name={key}
-                  selected={isSelected}
-                  entryCount={fn.length}
-                  currentValue={formatValue(
-                    val !== undefined ? emulate(val) : undefined
-                  )}
-                  onClick={() => selectStream(key)}
-                />
-              );
-            } else {
-              // Parameterized
-              const params = getParamKeys(fn);
-              const isExpanded = expandedKeys.has(key);
-              return (
-                <div key={key}>
-                  <div
-                    className="stream-item stream-group"
-                    onClick={() => toggleExpand(key)}
-                  >
-                    <span className="stream-name">
-                      {isExpanded ? "\u25BE" : "\u25B8"} {key}
-                    </span>
-                    <span className="stream-count">{params.length} params</span>
-                  </div>
-                  {isExpanded &&
-                    params.map((param) => {
-                      const stream = getStream(session, key, param);
-                      const isSelected =
-                        selectedKey === key && selectedParam === param;
-                      const val = stream
-                        ? valueAt(stream, currentTime)
-                        : undefined;
-                      return (
-                        <StreamItem
-                          key={`${key}:${param}`}
-                          name={key}
-                          param={param}
-                          selected={isSelected}
-                          entryCount={stream?.length ?? 0}
-                          currentValue={formatValue(
-                            val !== undefined ? emulate(val) : undefined
-                          )}
-                          onClick={() => selectStream(key, param)}
-                        />
-                      );
-                    })}
-                </div>
-              );
-            }
-          })}
+          {functionKeys.map((key) => (
+            <StreamTreeNode
+              key={key}
+              functionName={key}
+              node={session.functions[key]}
+              params={[]}
+              depth={0}
+              currentTime={currentTime}
+              selectedKey={selectedKey}
+              selectedParams={selectedParams}
+              expandedKeys={expandedKeys}
+              onToggle={toggleExpand}
+              onSelect={selectStream}
+            />
+          ))}
         </div>
         <DeltaViewer
           session={session}
@@ -394,8 +468,7 @@ export function StreamViewer({ session, currentTime, onSeek }: StreamViewerProps
           <>
             <div className="stream-detail-header">
               <span className="stream-detail-name">
-                {selectedKey}
-                {selectedParam !== undefined ? `[${selectedParam}]` : ""}
+                {streamDisplayName(selectedKey, selectedParams)}
               </span>
               <span className="stream-detail-count">
                 {selectedStream.length} entries
