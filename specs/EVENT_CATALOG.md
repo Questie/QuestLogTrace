@@ -39,8 +39,9 @@ same delayed re-sample schedule.
 ### QuestDialog tracker
 
 Captures transient gossip, greeting, and current quest dialog APIs. Uses delayed
-re-samples to catch UI/server state settling and writes inactive tombstones on
-close/finish events.
+re-samples on open/update events to catch UI/server state settling. Close/finish
+events cancel pending delayed reads and perform one observed API sample; raw
+streams do not receive synthetic inactive values.
 
 - `QUEST_DETAIL`
 - `QUEST_PROGRESS`
@@ -53,7 +54,7 @@ close/finish events.
 
 ### Loot tracker
 
-Triggers loot function sampling on open, resets to nil/0 on close.
+Triggers loot function sampling on open and observed close-state sampling on close. `LOOT_CLOSED` probes known loot APIs and records only successful API returns.
 
 - `LOOT_READY`
 - `LOOT_CLOSED`
@@ -100,8 +101,9 @@ sampling events).
 
 ### UnitInteraction tracker
 
-Triggers `UnitGUID` and `UnitName` sampling for `"target"`, `"npc"`, and
-`"questnpc"` tokens. All six streams are sampled on every event.
+Triggers observed `UnitGUID` and packed observed `UnitName` sampling for
+`"target"`, `"npc"`, and `"questnpc"` tokens. All six streams are sampled on
+every event without synthesizing `UnitName` from `UnitExists`.
 
 **From `player_state` (shared with other trackers):**
 - `PLAYER_TARGET_CHANGED`

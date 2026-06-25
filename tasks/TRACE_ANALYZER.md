@@ -290,7 +290,7 @@ Browse and inspect all function streams at the current time.
 
 3. Search/filter bar to find function keys by name
 
-**Validate:** Select `GetSubZoneText`, scrub timeline, see zone changes. Select `GetLootSlotInfo[1]`, see loot appear and go nil on close.
+**Validate:** Select `GetSubZoneText`, scrub timeline, see zone changes. Select `GetLootSlotInfo[1]`, see loot values change according to observed API samples around `LOOT_READY`/`LOOT_CLOSED`.
 
 ---
 
@@ -304,7 +304,7 @@ Filterable, scrollable event timeline.
    - Columns: `t` (formatted), `e` (event name), `a` (args summary)
    - Click event → expand to show full args
    - Filter bar: text search on event name
-   - Category toggles: Quest events, Chat events, Loot events, Movement events, etc.
+   - Category toggles: Quest events, Chat events, Loot events, NPC/init events, etc.
    - Auto-scroll to current timeline time (with toggle to disable)
    - Click an event timestamp → set timeline to that time
 

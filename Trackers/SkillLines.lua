@@ -66,6 +66,35 @@ local function ExpandAllSkillHeaders()
   expandingSkillHeaders = false
 end
 
+---Safely call a function and return the first result.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return any value
+local function SafeScalarCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local ok, value = pcall(fn, ...)
+  if not ok then return false, nil end
+  return true, value
+end
+
+---Safely call a function and pack all returned values.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return PackedArgs? value
+local function SafePackedCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local packed = PackArgs(pcall(fn, ...))
+  if not packed[1] then return false, nil end
+
+  local out = { n = packed.n - 1 }
+  for i = 2, packed.n do
+    out[i - 1] = packed[i]
+  end
+  return true, out
+end
+
 --- Append a value to a parameterized stream only when it changed.
 ---@param funcName string
 ---@param key number
@@ -100,7 +129,7 @@ end
 ---@param stream FunctionStreamEntry[]
 ---@param t number
 ---@param tp number
----@param value number
+---@param value any
 local function AppendScalarIfChanged(stream, t, tp, value)
   local prev = stream[#stream]
   if not prev or prev.v ~= value then
@@ -132,23 +161,30 @@ local function SampleSkills(capture)
   ---@type number
   local tp = GetTimePreciseSec() - capture.startedAtPrecise
 
-  local numSkillLines = type(GetNumSkillLines) == "function" and (GetNumSkillLines() or 0) or 0
-  AppendScalarIfChanged(streamNumSkillLines, t, tp, numSkillLines)
+  local numSkillLinesOk, numSkillLines = SafeScalarCall(GetNumSkillLines)
+  if numSkillLinesOk then
+    AppendScalarIfChanged(streamNumSkillLines, t, tp, numSkillLines)
+  end
 
   ---@type table<number, boolean>
   local seenSkillLineIndices = {}
-  if type(GetSkillLineInfo) == "function" then
+  if type(numSkillLines) == "number" and type(GetSkillLineInfo) == "function" then
     for index = 1, numSkillLines do
-      local value = PackArgs(GetSkillLineInfo(index))
-      seenSkillLineIndices[index] = true
-      knownSkillLineIndices[index] = true
-      AppendPackedIfChanged("GetSkillLineInfo", index, prevSkillLineInfo, t, tp, value)
+      local ok, value = SafePackedCall(GetSkillLineInfo, index)
+      if ok and value then
+        seenSkillLineIndices[index] = true
+        knownSkillLineIndices[index] = true
+        AppendPackedIfChanged("GetSkillLineInfo", index, prevSkillLineInfo, t, tp, value)
+      end
     end
   end
 
   for index in pairs(knownSkillLineIndices) do
     if not seenSkillLineIndices[index] then
-      AppendPackedIfChanged("GetSkillLineInfo", index, prevSkillLineInfo, t, tp, nil)
+      local ok, value = SafePackedCall(GetSkillLineInfo, index)
+      if ok and value then
+        AppendPackedIfChanged("GetSkillLineInfo", index, prevSkillLineInfo, t, tp, value)
+      end
     end
   end
 
@@ -172,7 +208,10 @@ local function SampleSkills(capture)
 
     for professionIndex in pairs(knownProfessionIndices) do
       if not seenProfessionIndices[professionIndex] then
-        AppendPackedIfChanged("GetProfessionInfo", professionIndex, prevProfessionInfo, t, tp, nil)
+        local ok, value = SafePackedCall(GetProfessionInfo, professionIndex)
+        if ok and value then
+          AppendPackedIfChanged("GetProfessionInfo", professionIndex, prevProfessionInfo, t, tp, value)
+        end
       end
     end
   end

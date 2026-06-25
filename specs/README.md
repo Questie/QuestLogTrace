@@ -88,7 +88,7 @@ specs/
 | GroupState | 5 events | Event-driven | `IsInGroup`, `GetNumGroupMembers` |
 | SkillLines | 3 events | Event + index iteration | `GetNumSkillLines`, `GetSkillLineInfo`, `GetProfessions`, `GetProfessionInfo` |
 | SpellBook | 2 events | Event + slot iteration | Spellbook slot streams + `PlayerKnownSpells` delta |
-| QuestDialog | 8 dialog events | Event + delayed re-samples + close reset | Gossip/greeting/current quest dialog APIs |
+| QuestDialog | 8 dialog events | Event + delayed re-samples + observed close sample | Gossip/greeting/current quest dialog APIs |
 | ResetTime | 3 lifecycle events | Init + snapshots | `GetServerTime`, `GetQuestResetTime` |
 
 ---

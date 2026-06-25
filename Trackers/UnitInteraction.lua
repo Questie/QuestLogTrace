@@ -7,7 +7,8 @@ local PackArgs = Core.PackArgs
 -- WoW API return schemas (for trace analyzer display labels)
 ---------------------------------------------------------------------------
 -- UnitGUID(unit)  -> string guid (or nil)
--- UnitName(unit)  -> string name, string realm (or nil when no unit)
+-- UnitName(unit)  -> string name, string realm
+--                    (packed actual returns; nil positions omitted by SavedVariables)
 --
 -- C_GossipInfo.GetAvailableQuests() -> GossipQuestUIInfo[] (table)
 -- C_GossipInfo.GetActiveQuests()    -> GossipQuestUIInfo[] (table)
@@ -26,6 +27,35 @@ local gossipAvailableStream
 ---@type FunctionStreamEntry[]?
 local gossipActiveStream
 
+---Safely call a function and return the first result.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return any value
+local function SafeScalarCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local ok, value = pcall(fn, ...)
+  if not ok then return false, nil end
+  return true, value
+end
+
+---Safely call a function and pack all returned values.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return PackedArgs? value
+local function SafePackedCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local packed = PackArgs(pcall(fn, ...))
+  if not packed[1] then return false, nil end
+
+  local out = { n = packed.n - 1 }
+  for i = 2, packed.n do
+    out[i - 1] = packed[i]
+  end
+  return true, out
+end
+
 --- Sample all six streams (UnitGUID + UnitName for each token).
 ---@param t number Session-relative GetTime()
 ---@param tp number Session-relative GetTimePreciseSec()
@@ -33,26 +63,29 @@ local function SampleAll(t, tp)
   if not guidStreams or not nameStreams then return end
 
   for _, token in ipairs(TOKENS) do
-    -- UnitGUID (scalar string or nil)
-    ---@type string?
-    local guid = UnitGUID(token)
-    ---@type FunctionStreamEntry[]
-    local guidStream = guidStreams[token]
-    ---@type FunctionStreamEntry?
-    local prevGuid = guidStream[#guidStream]
-    if not prevGuid or prevGuid.v ~= guid then
-      guidStream[#guidStream + 1] = { t = t, tp = tp, v = guid }
+    -- UnitGUID (scalar string or nil). Store only successful observed returns.
+    local guidOk, guid = SafeScalarCall(UnitGUID, token)
+    if guidOk then
+      ---@type FunctionStreamEntry[]
+      local guidStream = guidStreams[token]
+      ---@type FunctionStreamEntry?
+      local prevGuid = guidStream[#guidStream]
+      if not prevGuid or prevGuid.v ~= guid then
+        guidStream[#guidStream + 1] = { t = t, tp = tp, v = guid }
+      end
     end
 
-    -- UnitName (tuple n=2 or nil)
-    ---@type PackedArgs?
-    local nameVal = UnitExists(token) and PackArgs(UnitName(token)) or nil
-    ---@type FunctionStreamEntry[]
-    local nameStream = nameStreams[token]
-    ---@type FunctionStreamEntry?
-    local prevName = nameStream[#nameStream]
-    if not prevName or not DeepCompare(prevName.v, nameVal) then
-      nameStream[#nameStream + 1] = { t = t, tp = tp, v = nameVal }
+    -- UnitName (packed actual returns). Do not synthesize nil from UnitExists;
+    -- the token itself is mutable, so event-synchronous observations are the trace.
+    local nameOk, nameVal = SafePackedCall(UnitName, token)
+    if nameOk and nameVal then
+      ---@type FunctionStreamEntry[]
+      local nameStream = nameStreams[token]
+      ---@type FunctionStreamEntry?
+      local prevName = nameStream[#nameStream]
+      if not prevName or not DeepCompare(prevName.v, nameVal) then
+        nameStream[#nameStream + 1] = { t = t, tp = tp, v = nameVal }
+      end
     end
   end
 end
@@ -137,11 +170,11 @@ Core.RegisterTracker({
     local tp = GetTimePreciseSec() - capture.startedAtPrecise
     SampleAll(t, tp)
 
-    -- Gossip functions only return valid data when the gossip window is open
+    -- Gossip functions only return valid data when the gossip window is open.
+    -- Store only successful observed API returns.
     if event == "GOSSIP_SHOW" and gossipAvailableStream and gossipActiveStream then
-      if C_GossipInfo and C_GossipInfo.GetAvailableQuests then
-        ---@type table
-        local available = C_GossipInfo.GetAvailableQuests()
+      local availableOk, available = SafeScalarCall(C_GossipInfo and C_GossipInfo.GetAvailableQuests)
+      if availableOk then
         ---@type FunctionStreamEntry?
         local prev = gossipAvailableStream[#gossipAvailableStream]
         if not prev or not DeepCompare(prev.v, available) then
@@ -149,9 +182,8 @@ Core.RegisterTracker({
         end
       end
 
-      if C_GossipInfo and C_GossipInfo.GetActiveQuests then
-        ---@type table
-        local active = C_GossipInfo.GetActiveQuests()
+      local activeOk, active = SafeScalarCall(C_GossipInfo and C_GossipInfo.GetActiveQuests)
+      if activeOk then
         ---@type FunctionStreamEntry?
         local prev = gossipActiveStream[#gossipActiveStream]
         if not prev or not DeepCompare(prev.v, active) then

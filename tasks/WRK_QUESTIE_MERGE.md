@@ -53,7 +53,8 @@ Merged into `merge/wrk-questie-reconcile`:
 - Added `Trackers/QuestDialog.lua` for gossip, greeting, and current quest-dialog API streams.
 - Added `Trackers/ResetTime.lua` for low-frequency `GetServerTime` and `GetQuestResetTime` snapshots.
 - Added `UnitClassBase["player"]` capture while preserving `UnitFactionGroup["player"]`.
-- Expanded `Trackers/QuestLog.lua` with Questie replay streams, timer compatibility streams, reward streams, tombstones, and nested `GetQuestLogRewardInfo[rewardIndex][questId]` storage.
+- Expanded `Trackers/QuestLog.lua` with Questie replay streams, timer compatibility streams, raw reward streams, post-invalidation probes for removed quest IDs, and nested `GetQuestLogRewardInfo[rewardIndex][questId]` storage.
+- Removed synthetic reset/tombstone writes from raw API streams in favor of event-synchronous observed API sampling/probing; explicitly derived streams keep documented derived semantics.
 - Added recursive/nested function stream support to Lua annotations and trace analyzer lookup/UI.
 - Kept movement start/stop as private Position sampling triggers, not recorded trace events.
 - Added `Core.GetDiagnosticSession()` so bridge/tests can inspect the live unsaved session or newest saved session read-only by convention.

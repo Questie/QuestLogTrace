@@ -38,6 +38,35 @@ local knownSlots
 ---@type table<number, boolean>
 local currentKnownSpells
 
+---Safely call a function and pack all returned values.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return PackedArgs? value
+local function SafePackedCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local packed = PackArgs(pcall(fn, ...))
+  if not packed[1] then return false, nil end
+
+  local out = { n = packed.n - 1 }
+  for i = 2, packed.n do
+    out[i - 1] = packed[i]
+  end
+  return true, out
+end
+
+---Safely call a function and return the first result.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return any value
+local function SafeScalarCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local ok, value = pcall(fn, ...)
+  if not ok then return false, nil end
+  return true, value
+end
+
 --- Append a parameterized packed value only when it changed.
 ---@param funcName string
 ---@param key number
@@ -185,12 +214,19 @@ local function SampleSpellBook(capture)
 
   for slot in pairs(knownSlots) do
     if not seenSlots[slot] then
-      AppendPackedIfChanged("GetSpellBookItemName", slot, prevName, t, tp, nil)
-      if functions["GetSpellBookItemInfo"] then
-        AppendPackedIfChanged("GetSpellBookItemInfo", slot, prevInfo, t, tp, nil)
+      local nameOk, nameValue = SafePackedCall(GetSpellBookItemName, slot, BOOK_TYPE)
+      if nameOk and nameValue then
+        AppendPackedIfChanged("GetSpellBookItemName", slot, prevName, t, tp, nameValue)
       end
-      if functions["IsPassiveSpell"] then
-        AppendScalarIfChanged("IsPassiveSpell", slot, prevPassive, t, tp, nil)
+
+      local infoOk, infoValue = SafePackedCall(GetSpellBookItemInfo, slot, BOOK_TYPE)
+      if infoOk and infoValue then
+        AppendPackedIfChanged("GetSpellBookItemInfo", slot, prevInfo, t, tp, infoValue)
+      end
+
+      local passiveOk, passiveValue = SafeScalarCall(IsPassiveSpell, slot, BOOK_TYPE)
+      if passiveOk then
+        AppendScalarIfChanged("IsPassiveSpell", slot, prevPassive, t, tp, passiveValue)
       end
     end
   end

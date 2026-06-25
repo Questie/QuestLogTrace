@@ -236,6 +236,9 @@ All tuple-returning functions MUST have `n` on every stored value.
 ## 9) Complete function catalog
 
 > **API vs synthetic/derived keys.** Most keys are direct WoW API names.
+> For raw API streams, stored values come from successful calls to that API with
+> the represented arguments. Event-driven close/removal/count-shrink sampling
+> records whatever the API actually returns; it does not invent inactive values.
 > Synthetic keys are computed by trackers. Derived compatibility streams use a
 > WoW API-like name but store a replay-friendly shape.
 
@@ -302,48 +305,48 @@ All tuple-returning functions MUST have `n` on every stored value.
 |---|---|---|
 | `IsQuestComplete` | scalar (boolean) | |
 | `HaveQuestData` | scalar (boolean/nil) | Captured when API exists |
-| `C_QuestLog.IsOnQuest` | scalar (boolean/nil) | Explicit false tombstone when quest leaves log |
-| `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean) | |
-| `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]) | |
+| `C_QuestLog.IsOnQuest` | scalar (boolean/nil) | Raw API result; probed again after quest leaves log |
+| `C_QuestLog.IsQuestFlaggedCompleted` | scalar (boolean/nil) | Raw API result; related to but not derived from `GetQuestsCompleted` |
+| `C_QuestLog.GetQuestObjectives` | object (QuestObjectiveInfo[]/nil) | Raw API result; probed again after quest leaves log |
 | `GetQuestLogTitle` | tuple (n=17) | Stored by quest ID after resolving current quest log index |
 | `GetQuestLogQuestText` | tuple (n=2) | questDescription, questObjectives |
 | `GetQuestTimers` | scalar (number/nil) | *(derived compatibility)* questId-keyed seconds-left from native timer slots |
 | `GetQuestLogTimeLeft` | scalar (number/nil) | *(derived compatibility)* same seconds-left value, no selection side effects |
-| `GetNumQuestLogRewards` | scalar (number/nil) | Reward count; tombstoned on removal |
-| `GetQuestLogRewardMoney` | scalar (number/nil) | Reward money; tombstoned on removal |
+| `GetNumQuestLogRewards` | scalar (number/nil) | Raw API result; probed again after quest leaves log |
+| `GetQuestLogRewardMoney` | scalar (number/nil) | Raw API result; probed again after quest leaves log |
 | `GetQuestTagInfo` | tuple (n varies) | |
 
 ### Nested parameterized by native arguments
 
 | Function key | Shape | Return type | Notes |
 |---|---|---|---|
-| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Native argument order; reward indices tombstoned when counts shrink or quest leaves log |
+| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Raw API result in native argument order; previously observed indices are probed again after counts shrink or quest leaves log |
 
 ### Parameterized by greeting index
 
 | Function key | Return type | Notes |
 |---|---|---|
 | `GetActiveTitle` | tuple (n=2) | title, isComplete |
-| `GetAvailableTitle` | scalar (string/nil) | title; stale indices reset to nil |
+| `GetAvailableTitle` | scalar (string/nil) | title; stale indices are probed with the actual API when counts shrink |
 
 ### Parameterized by unit token (`"target"`, `"npc"`, `"questnpc"`)
 
 | Function key | Return type | Notes |
 |---|---|---|
 | `UnitGUID` | scalar (string) or nil | GUID string; nil when no unit |
-| `UnitName` | tuple (n=2) or nil | name, realm; nil when no unit |
+| `UnitName` | packed tuple (n varies) | observed `UnitName(token)` returns; no synthetic `UnitExists` mapping |
 
 ### Parameterized by slot index
 
 | Function key | Return type | Notes |
 |---|---|---|
-| `GetLootSlotInfo` | tuple (n=9) | nil when loot window closed |
-| `GetLootSourceInfo` | tuple (n=2) | nil when loot window closed |
-| `GetLootSlotLink` | scalar (string) | nil when loot window closed |
-| `GetLootSlotType` | scalar (number) | nil when loot window closed |
-| `GetSpellBookItemName` | tuple (n=3) | `spellName`, `spellSubName`, `spellID`; nil when slot absent |
-| `GetSpellBookItemInfo` | tuple (n=2) | `spellType`, `id`; nil when slot absent |
-| `IsPassiveSpell` | scalar (number) | raw `1|nil` return from API |
+| `GetLootSlotInfo` | tuple (n=9) | observed slot API return |
+| `GetLootSourceInfo` | tuple (n=2) | observed slot API return |
+| `GetLootSlotLink` | scalar (string/nil) | observed slot API return |
+| `GetLootSlotType` | scalar (number/nil) | observed slot API return |
+| `GetSpellBookItemName` | tuple (n varies) | observed spellbook name API return |
+| `GetSpellBookItemInfo` | tuple (n varies) | observed spellbook info API return |
+| `IsPassiveSpell` | scalar (number/nil) | observed passive marker return |
 
 ### Parameterized by factionID
 

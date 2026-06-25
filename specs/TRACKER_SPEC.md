@@ -200,10 +200,13 @@ factionIDs.
 
 ### Pattern 5: Event-driven with window lifecycle
 
-Sample on open event, reset to nil/0 on close event.
+Sample raw APIs on open/update events and again on close events. Close samples
+record observed API returns only; they do not invent `nil`, `0`, `false`, empty
+arrays, or empty packed tuples for raw streams.
 
-**Example:** Loot — samples all slot functions on `LOOT_READY`, resets
-everything to nil/0 on `LOOT_CLOSED`.
+**Example:** Loot — samples all slot functions on `LOOT_READY`, then probes
+`GetNumLootItems` and known slot APIs on `LOOT_CLOSED`, appending only
+successful observed returns.
 
 ---
 
@@ -222,7 +225,7 @@ everything to nil/0 on `LOOT_CLOSED`.
 | GroupState | `Trackers/GroupState.lua` | `IsInGroup`, `GetNumGroupMembers` | Event-driven | `GROUP_JOINED`, `GROUP_LEFT`, `GROUP_ROSTER_UPDATE`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | SkillLines | `Trackers/SkillLines.lua` | `GetNumSkillLines`, `GetSkillLineInfo[index]`, `GetProfessions`, `GetProfessionInfo[index]` | Event + index iteration | `SKILL_LINES_CHANGED`, `PLAYER_ENTERING_WORLD`, `SPELLS_CHANGED` |
 | SpellBook | `Trackers/SpellBook.lua` | `SpellBook`, `GetSpellBookItemName[slot]`, `GetSpellBookItemInfo[slot]`, `IsPassiveSpell[slot]`, `PlayerKnownSpells` (functionsDelta) | Event + slot iteration | `SPELLS_CHANGED`, `PLAYER_ENTERING_WORLD` |
-| QuestDialog | `Trackers/QuestDialog.lua` | Gossip, greeting, and current quest-dialog APIs | Event + delayed re-samples + close-state resets | `QUEST_DETAIL`, `QUEST_PROGRESS`, `QUEST_COMPLETE`, `QUEST_FINISHED`, `QUEST_GREETING`, `QUEST_ACCEPT_CONFIRM`, `GOSSIP_SHOW`, `GOSSIP_CLOSED` |
+| QuestDialog | `Trackers/QuestDialog.lua` | Gossip, greeting, and current quest-dialog APIs | Event + delayed re-samples + observed close sample | `QUEST_DETAIL`, `QUEST_PROGRESS`, `QUEST_COMPLETE`, `QUEST_FINISHED`, `QUEST_GREETING`, `QUEST_ACCEPT_CONFIRM`, `GOSSIP_SHOW`, `GOSSIP_CLOSED` |
 | ResetTime | `Trackers/ResetTime.lua` | `GetServerTime`, `GetQuestResetTime` | Init + low-frequency event snapshots | `PLAYER_LOGIN`, `PLAYER_ENTERING_WORLD`, `PLAYER_LOGOUT` |
 
 ---
@@ -296,29 +299,42 @@ re-sampling is needed.
 
 The QuestLog tracker retains the existing active quest-log streams and adds Questie-oriented replay streams. `GetQuestLogQuestText[questId]` remains captured alongside current quest dialog text streams; they are different APIs.
 
-Timer streams are derived compatibility streams. The native Classic API exposes `GetQuestTimers()` as timer slots, then `GetQuestIndexForTimer(timerIndex)` maps a slot to a quest-log index. The tracker resolves that index to a quest ID and records both `GetQuestTimers[questId]` and `GetQuestLogTimeLeft[questId]` as seconds-left values. When a previously timed quest disappears from the timer mapping, both streams receive nil tombstones.
+Raw questID API streams preserve observed API behavior. Values for `IsQuestComplete`, `HaveQuestData`, `C_QuestLog.IsOnQuest`, `C_QuestLog.IsQuestFlaggedCompleted`, `C_QuestLog.GetQuestObjectives`, `GetQuestTagInfo`, reward count/money, and `GetQuestLogRewardInfo` are appended only after successful calls to those functions with the represented quest ID/arguments. When a quest leaves `QuestLog`, the tracker runs post-invalidation probes immediately and at the standard delayed offsets so traces capture the exact post-removal API behavior after Blizzard state settles. `C_QuestLog.IsQuestFlaggedCompleted` is related to `GetQuestsCompleted`, but the raw function stream is not derived from the completed-quest delta set.
 
-Reward streams are quest-scoped except `GetQuestLogRewardInfo`, which is a true two-argument API and is stored in native argument order as `functions["GetQuestLogRewardInfo"][rewardIndex][questId]`. When reward counts shrink or a quest leaves the log, reward count, reward money, and reward-info streams receive nil tombstones to avoid stale replay values.
+Timer streams are derived compatibility streams. The native Classic API exposes `GetQuestTimers()` as timer slots, then `GetQuestIndexForTimer(timerIndex)` maps a slot to a quest-log index. The tracker resolves that index to a quest ID and records both `GetQuestTimers[questId]` and `GetQuestLogTimeLeft[questId]` as seconds-left values. When a previously timed quest disappears from the timer mapping, both streams receive nil entries because the derived mapping is no longer valid; those nils are not raw native API return values.
+
+Reward streams are quest-scoped except `GetQuestLogRewardInfo`, which is a true two-argument API and is stored in native argument order as `functions["GetQuestLogRewardInfo"][rewardIndex][questId]`. Previously observed reward indices continue to be probed during post-invalidation checks; failed calls are skipped rather than replaced with invented inactive values.
 
 ---
 
 ## 11) QuestDialog tracker behavior
 
-The QuestDialog tracker captures transient gossip, greeting, and current quest dialog APIs used by replay consumers. It is separate from UnitInteraction because it records dialog state, not unit identity. It uses safe `pcall` wrappers and the standard delayed re-sample schedule. Close events (`GOSSIP_CLOSED`, `QUEST_FINISHED`) write deterministic inactive values and invalidate pending delayed reads.
+The QuestDialog tracker captures transient gossip, greeting, and current quest dialog APIs used by replay consumers. It is separate from UnitInteraction because it records dialog state, not unit identity. It uses safe `pcall` wrappers and the standard delayed re-sample schedule for open/update events. Close events (`GOSSIP_CLOSED`, `QUEST_FINISHED`) cancel pending delayed reads and perform one observed API sample; raw streams do not receive deterministic synthetic inactive values.
 
 Sampled parameterless streams include `C_GossipInfo.GetNumAvailableQuests`, `C_GossipInfo.GetNumActiveQuests`, `C_GossipInfo.GetText`, `C_GossipInfo.GetOptions`, legacy gossip count/list globals, greeting text/counts, current quest title/text/objective/progress/reward APIs, `GetRewardXP`, `IsQuestCompletable`, and `GetNumQuestChoices`.
 
-Indexed streams are `GetActiveTitle[index]` as a packed `{ title, isComplete, n = 2 }` tuple and `GetAvailableTitle[index]` as a scalar title. Stale indices are reset to nil when counts shrink.
+Indexed streams are `GetActiveTitle[index]` as a packed tuple and `GetAvailableTitle[index]` as a scalar title. When counts shrink, previously observed stale indices are probed with the actual indexed API and only successful returns are appended.
 
 ---
 
-## 12) ResetTime tracker behavior
+## 12) SkillLines and SpellBook stale-index behavior
+
+Skill and spellbook indices are mutable index spaces. When a previously observed
+skill/profession index or spellbook slot is no longer reached by the current
+count/enumeration, the trackers probe the old index with the represented raw API
+and append only successful observed returns. They do not synthesize nil entries
+for stale indices. `SpellBook` and `PlayerKnownSpells` remain explicit
+synthetic/delta streams derived from observed spellbook enumeration.
+
+---
+
+## 13) ResetTime tracker behavior
 
 The ResetTime tracker samples `GetServerTime` and `GetQuestResetTime` at capture start and on `PLAYER_LOGIN`, `PLAYER_ENTERING_WORLD`, and `PLAYER_LOGOUT`. These are low-frequency snapshots; replay consumers that need continuously increasing server time or countdown behavior should derive those values from the nearest snapshot and replay time.
 
 ---
 
-## 13) Change detection
+## 14) Change detection
 
 Trackers only append entries when values change. The comparison method
 depends on the value type:
@@ -327,7 +343,7 @@ depends on the value type:
 |---|---|---|
 | Scalar (number, string, boolean) | `==` | UnitLevel, Position zone texts, loot scalars |
 | Table/object | `DeepCompare()` | Reputation tuples, quest objectives, quest log membership |
-| Nil | Explicit nil check | Loot (always append on close) |
+| Nil | Explicit nil check | Raw API calls that actually returned nil |
 
 `DeepCompare` performs recursive key-by-key comparison with cycle
 detection and optional metatable comparison.
