@@ -1,6 +1,3 @@
----@class QuestLog
-QuestLog = select(2, ...)
-
 QuestLogTraceCore = QuestLogTraceCore or {}
 
 ---@class QuestLogTraceCore
