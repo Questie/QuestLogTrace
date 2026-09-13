@@ -30,14 +30,10 @@ local functions
 local previousValues
 ---@type table<string, boolean>
 local availableFlatStreams
----@type table<number, FunctionStreamEntry[]>
-local activeTitleStreams
----@type table<number, FunctionStreamEntry[]>
-local availableTitleStreams
 ---@type number
-local previousActiveTitleCount = 0
+local maxActiveTitleCount = 0
 ---@type number
-local previousAvailableTitleCount = 0
+local maxAvailableTitleCount = 0
 ---@type number
 local delayedSampleToken = 0 -- Invalidates pending delayed samples when dialog/gossip state changes.
 
@@ -252,55 +248,37 @@ local function IsCloseEvent(event)
 end
 
 ---Sample indexed greeting title APIs.
----When counts shrink, previously observed stale indices are probed with the
----actual indexed API. Failed calls are skipped; raw streams never receive
----invented inactive values.
+---Keep the highest counts for this capture so delayed samples retry stale
+---indices even when the first shrink probe errors or returns unsettled data.
+---Failed calls are skipped; raw streams never receive invented inactive values.
 ---@param t number
 ---@param tp number
 local function SampleTitleStreams(t, tp)
   if type(GetNumActiveQuests) == "function" and type(GetActiveTitle) == "function" then
     local ok, count = SafeScalarCall(GetNumActiveQuests)
     if ok and type(count) == "number" then
-      for index = 1, count do
+      maxActiveTitleCount = math.max(maxActiveTitleCount, count)
+      for index = 1, maxActiveTitleCount do
         local titleOk, titleData = SafePackedIndexCall(GetActiveTitle, index)
         if titleOk then
           local stream = GetOrCreateIndexStream("GetActiveTitle", index)
-          activeTitleStreams[index] = stream
           AppendIfChanged(stream, t, tp, "GetActiveTitle:" .. index, titleData)
         end
       end
-      for index = count + 1, previousActiveTitleCount do
-        local titleOk, titleData = SafePackedIndexCall(GetActiveTitle, index)
-        if titleOk then
-          local stream = GetOrCreateIndexStream("GetActiveTitle", index)
-          activeTitleStreams[index] = stream
-          AppendIfChanged(stream, t, tp, "GetActiveTitle:" .. index, titleData)
-        end
-      end
-      previousActiveTitleCount = count
     end
   end
 
   if type(GetNumAvailableQuests) == "function" and type(GetAvailableTitle) == "function" then
     local ok, count = SafeScalarCall(GetNumAvailableQuests)
     if ok and type(count) == "number" then
-      for index = 1, count do
+      maxAvailableTitleCount = math.max(maxAvailableTitleCount, count)
+      for index = 1, maxAvailableTitleCount do
         local titleOk, title = SafeScalarIndexCall(GetAvailableTitle, index)
         if titleOk then
           local stream = GetOrCreateIndexStream("GetAvailableTitle", index)
-          availableTitleStreams[index] = stream
           AppendIfChanged(stream, t, tp, "GetAvailableTitle:" .. index, title)
         end
       end
-      for index = count + 1, previousAvailableTitleCount do
-        local titleOk, title = SafeScalarIndexCall(GetAvailableTitle, index)
-        if titleOk then
-          local stream = GetOrCreateIndexStream("GetAvailableTitle", index)
-          availableTitleStreams[index] = stream
-          AppendIfChanged(stream, t, tp, "GetAvailableTitle:" .. index, title)
-        end
-      end
-      previousAvailableTitleCount = count
     end
   end
 end
@@ -358,10 +336,8 @@ Core.RegisterTracker({
     functions = capture.session.functions
     previousValues = {}
     availableFlatStreams = {}
-    activeTitleStreams = {}
-    availableTitleStreams = {}
-    previousActiveTitleCount = 0
-    previousAvailableTitleCount = 0
+    maxActiveTitleCount = 0
+    maxAvailableTitleCount = 0
     delayedSampleToken = 0
     flatStreamDefs = BuildFlatStreamDefs()
 

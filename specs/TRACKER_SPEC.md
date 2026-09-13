@@ -313,7 +313,7 @@ The QuestDialog tracker captures transient gossip, greeting, and current quest d
 
 Sampled parameterless streams include `C_GossipInfo.GetNumAvailableQuests`, `C_GossipInfo.GetNumActiveQuests`, `C_GossipInfo.GetText`, `C_GossipInfo.GetOptions`, legacy gossip count/list globals, greeting text/counts, current quest title/text/objective/progress/reward APIs, `GetRewardXP`, `IsQuestCompletable`, and `GetNumQuestChoices`.
 
-Indexed streams are `GetActiveTitle[index]` as a packed tuple and `GetAvailableTitle[index]` as a scalar title. When counts shrink, previously observed stale indices are probed with the actual indexed API and only successful returns are appended.
+Indexed streams are `GetActiveTitle[index]` as a packed tuple and `GetAvailableTitle[index]` as a scalar title. The highest count seen for each API is retained for the capture. When counts shrink, subsequent event and delayed samples continue probing stale indices so an initial error or unsettled return does not prevent later observations. Only successful returns are appended. A new capture resets these counts; close events still cancel delayed reads and perform only one sample.
 
 ---
 
