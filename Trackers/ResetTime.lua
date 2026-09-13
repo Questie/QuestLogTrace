@@ -28,7 +28,8 @@ local streams
 ---@param value any
 local function AppendIfChanged(stream, t, tp, key, value)
   local previous = previousValues[key]
-  local changed = false
+  ---@type boolean
+  local changed
 
   if previous == nil and value == nil then
     changed = #stream == 0

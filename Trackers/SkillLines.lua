@@ -104,7 +104,8 @@ end
 ---@param value PackedArgs?
 local function AppendPackedIfChanged(funcName, key, prev, t, tp, value)
   local old = prev[key]
-  local changed = false
+  ---@type boolean
+  local changed
 
   if old == nil and value == nil then
     changed = functions[funcName][key] == nil or #functions[funcName][key] == 0
