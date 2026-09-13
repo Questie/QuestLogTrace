@@ -1,1 +1,1 @@
--- No tests exist :(
+-- Offline tests: run `lua5.1 Tests/run.lua` from the addon root.
