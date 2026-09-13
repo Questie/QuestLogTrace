@@ -181,19 +181,31 @@ local function BuildFlatStreamDefs()
 
   if HasMethod(C_GossipInfo, "GetNumAvailableQuests") then
     EnsureFlatStream("C_GossipInfo.GetNumAvailableQuests")
-    defs[#defs + 1] = { key = "C_GossipInfo.GetNumAvailableQuests", getter = function() return SafeScalarCall(C_GossipInfo.GetNumAvailableQuests) end }
+    defs[#defs + 1] = {
+      key = "C_GossipInfo.GetNumAvailableQuests",
+      getter = function() return SafeScalarCall(C_GossipInfo.GetNumAvailableQuests) end
+    }
   end
   if HasMethod(C_GossipInfo, "GetNumActiveQuests") then
     EnsureFlatStream("C_GossipInfo.GetNumActiveQuests")
-    defs[#defs + 1] = { key = "C_GossipInfo.GetNumActiveQuests", getter = function() return SafeScalarCall(C_GossipInfo.GetNumActiveQuests) end }
+    defs[#defs + 1] = {
+      key = "C_GossipInfo.GetNumActiveQuests",
+      getter = function() return SafeScalarCall(C_GossipInfo.GetNumActiveQuests) end
+    }
   end
   if HasMethod(C_GossipInfo, "GetText") then
     EnsureFlatStream("C_GossipInfo.GetText")
-    defs[#defs + 1] = { key = "C_GossipInfo.GetText", getter = function() return SafeScalarCall(C_GossipInfo.GetText) end }
+    defs[#defs + 1] = {
+      key = "C_GossipInfo.GetText",
+      getter = function() return SafeScalarCall(C_GossipInfo.GetText) end
+    }
   end
   if HasMethod(C_GossipInfo, "GetOptions") then
     EnsureFlatStream("C_GossipInfo.GetOptions")
-    defs[#defs + 1] = { key = "C_GossipInfo.GetOptions", getter = function() return SafeScalarCall(C_GossipInfo.GetOptions) end }
+    defs[#defs + 1] = {
+      key = "C_GossipInfo.GetOptions",
+      getter = function() return SafeScalarCall(C_GossipInfo.GetOptions) end
+    }
   end
 
   ---@type table<string, boolean>
