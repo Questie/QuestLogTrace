@@ -4,6 +4,8 @@ local Core = QuestLogTraceCore
 local Round = Core.Round
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
+---@type fun(t1: any, t2: any, ignore_mt: boolean?, visited: table?): boolean
+local DeepCompare = Core.DeepCompare
 
 local C_After = C_Timer.After
 

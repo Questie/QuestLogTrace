@@ -2833,7 +2833,6 @@ globals = {
     "QuestLogTraceCore",
     "QuestLogTraceCharacter",
     "QuestLogTraceDumps",
-    "DeepCompare",
     "Defer",
     "EventRegistrator",
     "LazyLoad",

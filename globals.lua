@@ -146,7 +146,7 @@ end
 ---@param ignore_mt boolean?
 ---@param visited table<table, table>? Internal cycle-detection table
 ---@return boolean equal
-function DeepCompare(t1, t2, ignore_mt, visited)
+function Core.DeepCompare(t1, t2, ignore_mt, visited)
   if t1 == t2 then return true end
 
   local type1, type2 = type(t1), type(t2)
@@ -160,14 +160,14 @@ function DeepCompare(t1, t2, ignore_mt, visited)
   if not ignore_mt then
     local mt1, mt2 = getmetatable(t1), getmetatable(t2)
     if mt1 or mt2 then
-      if not DeepCompare(mt1, mt2, ignore_mt, visited) then
+      if not Core.DeepCompare(mt1, mt2, ignore_mt, visited) then
         return false
       end
     end
   end
 
   for key, value in pairs(t1) do
-    if t2[key] == nil or not DeepCompare(value, t2[key], ignore_mt, visited) then
+    if t2[key] == nil or not Core.DeepCompare(value, t2[key], ignore_mt, visited) then
       return false
     end
   end
