@@ -98,7 +98,7 @@ local function SampleAll(capture)
   ---@type {x: number, y: number}?
   local posVal = (x and y) and { x = x, y = y } or nil
   ---@type boolean
-  local changed = false
+  local changed
   if not prevPos then
     changed = true
   elseif prevPos.v == nil and posVal == nil then

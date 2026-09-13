@@ -168,7 +168,8 @@ end
 ---@param funcName string The function name for change tracking
 local function AppendFlatIfChanged(stream, t, tp, v, funcName)
   local prev = prevFlat[funcName]
-  local changed = false
+  ---@type boolean
+  local changed
 
   if prev == nil and v == nil then
     changed = #stream == 0
@@ -197,7 +198,7 @@ local function AppendIfChanged(stream, t, tp, v, questId, funcName)
   ---@type any
   local prev = prevQuest[questId] and prevQuest[questId][funcName]
   ---@type boolean
-  local changed = false
+  local changed
 
   if prev == nil and v == nil then
     -- Both nil — only changed if this is the first entry for this quest+func
@@ -230,7 +231,8 @@ local function AppendNestedIfChanged(stream, t, tp, v, funcName, key1, key2)
   if not prevNested[funcName][key1] then prevNested[funcName][key1] = {} end
 
   local previous = prevNested[funcName][key1][key2]
-  local changed = false
+  ---@type boolean
+  local changed
 
   if previous == nil and v == nil then
     changed = #stream == 0
