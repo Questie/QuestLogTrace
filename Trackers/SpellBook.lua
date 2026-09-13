@@ -181,13 +181,13 @@ local function SampleSpellBook(capture)
   if type(GetSpellBookItemName) == "function" then
     local slot = 1
     while true do
-      local spellName, spellSubName, spellID = GetSpellBookItemName(slot, BOOK_TYPE)
-      if spellName == nil then break end
+      local nameValue = PackArgs(GetSpellBookItemName(slot, BOOK_TYPE))
+      if nameValue[1] == nil then break end
+      local spellID = nameValue[3]
 
       seenSlots[slot] = true
       knownSlots[slot] = true
 
-      local nameValue = { spellName, spellSubName, spellID, n = 3 }
       AppendPackedIfChanged("GetSpellBookItemName", slot, prevName, t, tp, nameValue)
 
       if type(GetSpellBookItemInfo) == "function" then
