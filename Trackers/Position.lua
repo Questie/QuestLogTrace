@@ -5,6 +5,8 @@ local Round = Core.Round
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
 
+local C_After = C_Timer.After
+
 ---------------------------------------------------------------------------
 -- WoW API return schemas (for trace analyzer display labels)
 ---------------------------------------------------------------------------
