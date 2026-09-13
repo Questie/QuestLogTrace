@@ -1,15 +1,7 @@
----@class QuestLog
-local QuestLog = select(2, ...)
-
 QuestLogTraceCore = QuestLogTraceCore or {}
 
 ---@class QuestLogTraceCore
 local Core = QuestLogTraceCore
-
----@type fun(table: table, metatable: table?): table
-local setmetatable = setmetatable
----@type fun(delay: number, callback: function)
-local C_After = C_Timer.After
 
 ---------------------------------------------------------------------------
 -- Shared type definitions (used across all trackers)
@@ -120,21 +112,6 @@ local C_After = C_Timer.After
 ---@class QuestLogTraceDumpsData
 ---@field schemaVersion number
 ---@field dumps table<string, any>
-
---? Execute the next frame
---! Be careful with this because the order of defered functions is not guaranteed
----@param func function The function to execute on the next frame
-Defer = function(func)
-  C_After(0, func)
-end
-
---- No Operation
----@param ... unknown
-QuestLog.NOP = function(...)
-  if select("#", ...) > 0 then
-    print("NOP", ...)
-  end
-end
 
 ---------------------------------------------------------------------------
 -- Deep compare
@@ -333,75 +310,4 @@ function Core.GetDumpHelpLines()
   end
   table.sort(lines)
   return lines
-end
-
----------------------------------------------------------------------------
--- Lazy loading (preserved from original)
----------------------------------------------------------------------------
-
-do
-  ---@generic T
-  ---@param moduleName `T`
-  ---@param createFunction fun(): `T`
-  ---@return T
-  function LazyLoad(moduleName, createFunction)
-    return setmetatable({}, {
-      __index = function(_, key)
-        QuestLog[moduleName] = createFunction()
-        return QuestLog[moduleName][key] or error(moduleName .. " does not have a " .. key .. " property")
-      end
-    })
-  end
-
-  ---@generic T
-  ---@param moduleName `T`
-  ---@param alwaysLoadAfter number
-  ---@param createFunction fun(): `T`
-  ---@return T
-  function LazyLoad_After(moduleName, alwaysLoadAfter, createFunction)
-    local module = LazyLoad(moduleName, createFunction)
-    C_After(alwaysLoadAfter, function()
-      if QuestLog[moduleName] == module then
-        QuestLog[moduleName] = createFunction()
-      end
-    end)
-    return module
-  end
-
-  QuestLog.LazyLoad = LazyLoad
-  QuestLog.LazyLoad_After = LazyLoad_After
-end
-
----------------------------------------------------------------------------
--- Event registration helper (preserved from original)
----------------------------------------------------------------------------
-
----@return table<string, function>
-function EventRegistrator()
-  ---@type table<string, function>
-  local RegisteredEvents = {}
-  ---@param _ Frame
-  ---@param event string
-  ---@param ... any
-  local function OnEvent(_, event, ...)
-    RegisteredEvents[event](...)
-  end
-
-  local eventFrame = CreateFrame("Frame")
-  eventFrame:SetScript("OnEvent", OnEvent)
-
-  return setmetatable({}, {
-    __index = function(_, event)
-      return RegisteredEvents[event]
-    end,
-    __newindex = function(_, event, func)
-      if RegisteredEvents[event] and func == nil then
-        eventFrame:UnregisterEvent(event)
-        RegisteredEvents[event] = nil
-      else
-        eventFrame:RegisterEvent(event)
-        RegisteredEvents[event] = func
-      end
-    end
-  })
 end
