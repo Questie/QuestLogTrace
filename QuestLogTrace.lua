@@ -537,8 +537,8 @@ SlashCmdList["QUESTLOGTRACE"] = function(msg)
   elseif action == "auto" then
     QuestLogTrace.settings.autoStart = not QuestLogTrace.settings.autoStart
     print(ADDON_NAME, "Auto-start on login:", QuestLogTrace.settings.autoStart and "enabled" or "disabled")
-  elseif Core.RunDumpBySlash and Core.RunDumpBySlash(action, argument) then
-    -- handled by dump provider
+  elseif Core.RunDumpBySlash then
+    Core.RunDumpBySlash(action, argument)
   elseif action == "ui" then
     if Core.ToggleControlFrame then
       Core.ToggleControlFrame()
