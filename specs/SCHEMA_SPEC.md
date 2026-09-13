@@ -57,6 +57,7 @@ Each `/qlt save` appends one record to `QuestLogTraceCharacter.sessions`.
 ```lua
 SessionRecord = {
   schemaVersion = 9,
+  recordingContractVersion = 1,
   name = "2026-02-10_12-34-56",
 
   startedAt        = 100000.000,     -- GetTime() at capture start
@@ -71,6 +72,20 @@ SessionRecord = {
   functionsDelta = table<string, DeltaStream>,
 }
 ```
+
+### Recording contract
+
+`recordingContractVersion` identifies recording semantics independently of the
+storage schema. New captures use `1`: raw API streams contain successful API
+observations, not synthetic close/removal resets. Explicit synthetic/derived
+streams retain their documented semantics. Failed calls produce no sample; the
+last observation is not proof that an API still returns that value later.
+
+Missing markers mean legacy/unknown semantics, even for schema v9. Those sessions
+may contain synthetic resets or normalized returns. Consumers must check for the
+supported value `1` before applying the observed-only guarantee; other versions
+are unknown until supported. Do not infer or backfill a marker from stream data.
+Existing saves and settings are unchanged; this field requires no schema migration.
 
 No `summary` block — consumers derive counts from the data.
 No `player` block — player identity is stored as function streams
@@ -236,9 +251,10 @@ All tuple-returning functions MUST have `n` on every stored value.
 ## 9) Complete function catalog
 
 > **API vs synthetic/derived keys.** Most keys are direct WoW API names.
-> For raw API streams, stored values come from successful calls to that API with
-> the represented arguments. Event-driven close/removal/count-shrink sampling
-> records whatever the API actually returns; it does not invent inactive values.
+> For sessions with `recordingContractVersion = 1`, raw API stream values come
+> from successful calls to that API with the represented arguments. Event-driven
+> close/removal/count-shrink sampling records whatever the API actually returns;
+> it does not invent inactive values.
 > Synthetic keys are computed by trackers. Derived compatibility streams use a
 > WoW API-like name but store a replay-friendly shape.
 
@@ -297,7 +313,7 @@ All tuple-returning functions MUST have `n` on every stored value.
 | `UnitSex` | scalar (number) | |
 | `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar (number) | map ID |
-| `C_Map.GetPlayerMapPosition` | object ({x, y}) | rounded to 4 decimals |
+| `C_Map.GetPlayerMapPosition` | object ({x, y})/nil | *(derived compatibility)* current-map coordinates rounded to 4 decimals; nil when map/position is unavailable, including when no position API call was possible |
 
 ### Parameterized by questId
 
@@ -372,10 +388,10 @@ All tuple-returning functions MUST have `n` on every stored value.
 
 ## 10) Complete annotated session example
 
-Below is a single `SessionRecord` showing what a real saved session looks
-like. Every format variant (parameterless streams, parameterized streams,
-tuples, objects, scalars, delta streams) is represented with a small
-number of entries.
+Below is an unmarked legacy v9 `SessionRecord` illustrating the storage shapes.
+It includes synthetic loot close resets, which must not be interpreted as native
+API observations. New recordings carry `recordingContractVersion = 1` and store
+only observed raw API returns instead of those resets.
 
 ```lua
 {

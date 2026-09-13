@@ -2,6 +2,13 @@
 
 How to reconstruct WoW API function outputs at a target time `t` from QuestLogTrace saved data.
 
+The observed-only raw API guarantee applies to sessions with
+`recordingContractVersion = 1`. Unmarked sessions, including older schema v9
+captures, have legacy/unknown semantics and may contain synthetic resets. Treat
+unsupported contract versions as unknown; do not infer a marker from values.
+Lookup mechanics remain the same, but a last observation is not proof of the
+API's value at a later time, especially after a failed probe.
+
 ## 1) Generic lookup
 
 Stored function streams use the same lookup algorithm: find the stream for an API/function key, follow any parameter maps in native argument order, find the latest entry at or before the target time, and unpack packed tuple values when returning them.
@@ -185,6 +192,6 @@ Iterate `session.events` in order and fire events whose `t` lies in the requeste
 
 - Only captured/listed functions can be emulated.
 - Missing `v` means a stored nil value.
-- Position XY is rounded to 4 decimal places.
+- `C_Map.GetPlayerMapPosition["player"]` is a derived compatibility stream, not a raw API stream. It uses the current map, rounds XY to 4 decimal places, and stores nil when the map or position is unavailable. A missing map produces nil without calling the position API; that nil is not a native API observation.
 - Skill line IDs are not normalized during capture.
 - Reset-time streams are low-frequency snapshots; replay consumers derive continuously changing server time or countdown behavior.

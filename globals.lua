@@ -52,6 +52,7 @@ C_After = C_Timer.After
 
 ---@class SessionRecord
 ---@field schemaVersion number
+---@field recordingContractVersion number? 1 = observed raw API streams; absent = legacy/unknown.
 ---@field name string?
 ---@field startedAt number
 ---@field startedAtPrecise number

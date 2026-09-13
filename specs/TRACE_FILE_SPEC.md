@@ -16,6 +16,7 @@ time T?" for every captured function.
 ```lua
 SessionRecord = {
   schemaVersion = 9,
+  recordingContractVersion = 1,
   name = "2026-02-10_12-34-56",       -- session identifier
 
   -- Absolute clock baselines (seconds)
@@ -31,6 +32,14 @@ SessionRecord = {
   functionsDelta = { [functionKey] = DeltaStream, ... },
 }
 ```
+
+`recordingContractVersion = 1` identifies the observed-only raw API contract
+used by new captures. Synthetic/derived streams remain exceptions as documented
+below. An absent marker means legacy/unknown semantics, including for schema v9:
+those sessions may contain invented resets or normalized API returns. Consumers
+must recognize version `1` explicitly; unsupported versions are unknown. Do not
+backfill this field on older sessions. Existing saves/settings are preserved and
+the storage schema remains v9.
 
 - `events` — ordered time-series of game events that fired during the session.
 - `functions` — captured WoW API return values over time (change-only).
@@ -310,9 +319,10 @@ streams, described below).
 ## 9) Complete function catalog
 
 Every function key that can appear in `session.functions`, organized by
-parameter type. Raw API function streams store observed successful API returns
-only. Event-driven close/removal/count-shrink probes may record nil, zero, empty
-string, or empty table values, but only when those values came from the API call
+parameter type. In sessions marked `recordingContractVersion = 1`, raw API
+function streams store observed successful API returns only. Event-driven
+close/removal/count-shrink probes may record nil, zero, empty string, or empty
+table values, but only when those values came from the API call
 itself. Explicit synthetic/derived streams are marked below.
 
 ### Parameterless functions
@@ -374,7 +384,7 @@ Called with `"player"` as the argument.
 | `UnitSex` | scalar number | Sex ID |
 | `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar number | Map ID |
-| `C_Map.GetPlayerMapPosition` | object {x, y} | Coordinates (rounded to 4 decimals) |
+| `C_Map.GetPlayerMapPosition` | object {x, y}/nil | Derived compatibility: current-map coordinates rounded to 4 decimals; nil when map/position is unavailable, including when no position API call was possible |
 
 ### Parameterized by quest ID (number)
 

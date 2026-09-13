@@ -65,6 +65,8 @@ export type FunctionStream = FunctionStreamEntry[] | FunctionStreamMap;
 /** A complete session recording */
 export interface SessionRecord {
   schemaVersion: number;
+  /** 1 = observed raw API streams; absent = legacy/unknown recording contract. */
+  recordingContractVersion?: number;
   name: string;
   startedAt: number;
   startedAtPrecise: number;
