@@ -1,0 +1,364 @@
+# AGENTS.md - QuestLogTrace WoW Addon
+
+QuestLogTrace is a World of Warcraft Classic addon written in Lua 5.1 that provides event tracing and function tracing capabilities for debugging and development.
+
+## Build & Test Commands
+
+### Prerequisites
+
+- Lua 5.1, luarocks, luacheck
+- Luarocks packages: `bit32`, `busted`, `luafilesystem`
+
+### Tests
+
+```bash
+# Run busted-style unit tests
+busted -p ".test.lua" .
+
+# Run custom test runner (main test suite)
+lua Tests/run.lua
+```
+
+### Linting (Luacheck)
+
+```bash
+luacheck -q -- Trackers globals.lua QuestLogTrace.lua QuestLogTrace_UI.lua
+```
+
+### Language Server
+
+```bash
+lua-language-server --check=.
+```
+
+> **Note:** Language server checks take ~3 minutes due to Blizzard UI documentation. Use 180s timeout.
+
+## Project Structure
+
+```
+QuestLogTrace.lua          - Main addon entry point (initialization, event handling)
+QuestLogTrace_UI.lua       - User interface code
+globals.lua                - Global variables, constants, shared state
+QuestLogTrace_StateTracking.lua - State tracking and management
+Trackers/                  - Individual tracking modules
+    PlayerIdentity.lua     - Player identity tracking
+    UnitLevel.lua          - Unit level tracking
+    Position.lua           - Position/coordinate tracking
+    Loot.lua               - Loot tracking
+    Reputation.lua         - Reputation tracking
+    QuestLog.lua           - Quest log tracking
+    CompletedQuests.lua    - Completed quests tracking
+    QuestDialog.lua        - Quest dialog/gossip tracking
+    UnitInteraction.lua    - Unit interaction tracking
+    GroupState.lua         - Group/raid state tracking
+    SkillLines.lua         - Skill lines tracking
+    SpellBook.lua          - Spell book tracking
+    ResetTime.lua          - Daily/weekly reset tracking
+specs/                     - Design specifications
+    ARCHITECTURE_SPEC.md   - Overall architecture
+    TRACKER_SPEC.md        - Tracker interface specification
+    EVENT_CATALOG.md       - Event catalog
+    SCHEMA_SPEC.md         - Data schema specification
+    TRACE_FILE_SPEC.md     - Trace file format
+    UI_SPEC.md             - UI specification
+    FUNCTION_EMULATION_SPEC.md - Function emulation
+    LuaLS_annotations.md   - LuaLS type annotation guide
+    README.md              - Specs index
+tasks/                     - Implementation task documents
+Documentation/
+    WoW-API/               - Blizzard API documentation (Functions-AI, Events)
+    WoW-Event/             - Blizzard event documentation
+Tests/
+    run.lua                - Test runner with mocked WoW API
+    Empty.lua              - Empty test file
+tools/
+    trace-analyzer/        - TypeScript/React trace analysis tool
+Traces/                    - Example trace files
+Dumps/                     - Data dumps (e.g. MapHierarchy)
+```
+
+## Code Style
+
+### Module System
+
+QuestLogTrace uses a simple module pattern. Trackers register themselves with the core.
+
+**Creating a tracker** (in Trackers/):
+
+```lua
+---@class MyTracker
+local MyTracker = {}
+MyTracker.__index = MyTracker
+
+function MyTracker:New()
+    local self = setmetatable({}, MyTracker)
+    self:Init()
+    return self
+end
+
+function MyTracker:Init()
+    -- Register events, initialize state
+end
+
+function MyTracker:OnEvent(event, ...)
+    -- Handle events
+end
+
+-- Register with core
+QuestLogTraceCore:RegisterTracker("MyTracker", MyTracker)
+```
+
+### Standard File Boilerplate
+
+```lua
+---@class MyTracker
+local MyTracker = {}
+MyTracker.__index = MyTracker
+
+-- Performance: alias frequently used functions
+local tinsert = table.insert
+local band = bit.band
+```
+
+### Formatting
+
+- Indent: 2 spaces (configured in .luarc.json)
+- Line endings: LF
+- Quote style: double quotes
+- Max line length: 160 (formatter) / 140 (luacheck)
+- No trailing whitespace
+
+### Type Annotations (LuaCATS / EmmyLua)
+
+Use annotations compatible with the sumneko.lua language server:
+
+```lua
+---@class ClassName
+---@field fieldName type
+---@param paramName type @Description
+---@return type @Description
+```
+
+Reference: `./specs/LuaLS_annotations.md`
+
+### Naming Conventions
+
+| Category             | Convention         | Example                          |
+|----------------------|--------------------|----------------------------------|
+| Tracker names        | PascalCase         | `QuestLogTracker`, `LootTracker` |
+| Local variables      | camelCase          | `playerName`, `currentTime`      |
+| Local functions      | `_` + PascalCase   | `_HelperFunction`                |
+| Tracker methods      | PascalCase         | `Tracker:OnEvent()`              |
+| Private tables       | `_` + PascalCase   | `_QuestLogTracker`               |
+| Constants            | UPPER_SNAKE_CASE   | `MAX_SESSIONS`, `SCHEMA_VERSION` |
+| File names (trackers)| PascalCase.lua     | `QuestLog.lua`, `Loot.lua`       |
+| Test files           | Source + .test.lua | (Not used - tests in Tests/)     |
+
+### Error Handling
+
+- `print("ERROR: ...")` - For critical errors (no structured logging yet)
+- `pcall` for risky operations
+- `error()` for hard input validation failures
+
+### Private vs Public Members
+
+- Public: directly on the module table (`MyTracker.field`, `function MyTracker:Method()`)
+- Private: file-local `local function helper()` for truly internal code
+
+### Expansion-Specific Code
+
+QuestLogTrace targets Classic Era (1.14.3). Use feature detection:
+
+```lua
+if C_GossipInfo then
+    -- Retail/Wrath+ API available
+else
+    -- Classic API
+end
+```
+
+### Functions vs Methods
+
+Prefer plain **functions** over **methods** when `self` is not needed. This avoids unnecessary method dispatch overhead and makes the code simpler to test and mock.
+
+**Bad** — unnecessary method syntax:
+```lua
+function MyTracker:HelperFunction()
+    -- self is not used
+    return someCalculation()
+end
+```
+
+**Good** — plain function when `self` is unused:
+```lua
+function MyTracker.HelperFunction()
+    return someCalculation()
+end
+```
+
+**Good** — method when `self` is actually used:
+```lua
+function MyTracker:OnEvent(event, ...)
+    self:ProcessEvent(event, ...)
+end
+```
+
+## Test Conventions
+
+### Custom Test Runner (Primary)
+
+Tests live in `Tests/run.lua` and use isolated Lua environments with mocked WoW APIs.
+
+```lua
+---@param trackerFiles string[]
+---@return TestRuntime
+local function NewRuntime(trackerFiles)
+    -- Creates isolated environment with mocked globals
+    -- Loads globals.lua, tracker files, QuestLogTrace.lua
+    -- Returns runtime with core, timers, frame mocks
+end
+
+---@param runtime TestRuntime
+---@param event string
+local function SendEvent(runtime, event)
+    runtime.frame.OnEvent(runtime.frame, event)
+end
+
+---@param runtime TestRuntime
+---@param target number
+local function AdvanceTo(runtime, target)
+    -- Advances virtual time, executes due timers
+end
+```
+
+#### Test Structure
+
+```lua
+local function TestFeatureName()
+    local runtime = NewRuntime({ "Trackers/SpecificTracker.lua" })
+    -- Setup mocks
+    runtime.core.StartCapture("test name")
+    -- Send events, advance time
+    -- Assert results
+end
+
+local tests = {
+    { name = "description", run = TestFeatureName },
+}
+
+for _, test in ipairs(tests) do
+    local ok, err = pcall(test.run)
+    print((ok and "PASS " or "FAIL ") .. test.name)
+    if not ok then print(err) end
+end
+```
+
+#### Mocking Guidelines
+
+- Override `_G.*` globals in `runtime.env`
+- Use `runtime.env.FunctionName = function() ... end`
+- Mock WoW API functions needed by the tracker under test
+- Use `AdvanceTo()` to test timer-based behavior
+
+#### Assertions
+
+- Use `assert(condition, message)` for all assertions
+- Compare tables with custom comparison if needed
+- Check timer behavior with `AdvanceTo` and call counts
+
+### Busted-Style Tests (Secondary)
+
+For new tests that fit the busted framework pattern, place `*.test.lua` files alongside the source code they test:
+
+```lua
+-- Trackers/MyTracker.test.lua
+describe("MyTracker", function()
+    it("should handle EVENT_NAME correctly", function()
+        -- test implementation
+    end)
+end)
+```
+
+Run with: `busted -p ".test.lua" .`
+
+## CI Pipeline
+
+CI runs on every push/PR: luacheck lint, custom test runner (`lua Tests/run.lua`), and busted tests (`busted -p ".test.lua" .`). Configured in `.github/workflows/ci.yml`.
+
+## Test Requirements
+
+Any change to a tracker **must** include corresponding test additions or adjustments:
+
+- Adding a new tracker → add test cases for its event handling in `Tests/run.lua` or create a `Trackers/NewTracker.test.lua`
+- Changing event handling behavior → update affected tests
+- Adding new public API → add tests for it
+
+Run the full suite before considering a change done:
+
+```bash
+lua Tests/run.lua
+busted -p ".test.lua" .
+```
+
+## Tracker Development Guidelines
+
+### Adding a New Tracker
+
+1. Create `Trackers/NewTracker.lua` following the module pattern
+2. Add to `QuestLogTrace-Classic.toc` in load order
+3. Register with `QuestLogTraceCore:RegisterTracker("NewTracker", NewTracker)`
+4. Add test cases in `Tests/run.lua`
+5. Update relevant specs in `specs/`
+
+### Event Registration
+
+```lua
+function MyTracker:Init()
+    self.frame = CreateFrame("Frame")
+    self.frame:RegisterEvent("EVENT_NAME")
+    self.frame:SetScript("OnEvent", function(_, event, ...)
+        self:OnEvent(event, ...)
+    end)
+end
+```
+
+### Timer Usage
+
+```lua
+C_Timer.After(delay, function()
+    -- Delayed work
+end)
+```
+
+### Data Storage
+
+Trackers store data in the session via `QuestLogTraceCore`:
+
+```lua
+local session = QuestLogTraceCore:GetCurrentSession()
+session.events[#session.events + 1] = { t = time, e = "EVENT_NAME", data = {...} }
+```
+
+## Specifications
+
+All design decisions are documented in `specs/`. Before implementing significant changes:
+
+1. Check relevant spec files
+2. Update specs if architecture changes
+3. Key specs:
+   - `ARCHITECTURE_SPEC.md` - Overall system design
+   - `TRACKER_SPEC.md` - Tracker interface contract
+   - `SCHEMA_SPEC.md` - Session data schema
+   - `EVENT_CATALOG.md` - Supported events
+
+## WoW API Documentation
+
+- Primary: https://warcraft.wiki.gg
+- Local: `./Documentation/WoW-API/Functions-AI/` and `./Documentation/WoW-Event/`
+
+## Forbidden Patterns
+
+- Never use code from `Trace/` (old unused UI)
+- Never use code from `.shit/` (manual trash)
+- Don't add test files to TOC
+- Don't commit trace files or dumps to repo
