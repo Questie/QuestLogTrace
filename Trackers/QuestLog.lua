@@ -246,66 +246,6 @@ local function AppendNestedIfChanged(stream, t, tp, v, funcName, key1, key2)
   end
 end
 
----Return whether a nested stream has previously captured a non-nil value.
----@param funcName string
----@param key1 string|number
----@param key2 string|number
----@return boolean
-local function HasNestedPrevious(funcName, key1, key2)
-  return prevNested[funcName] ~= nil
-    and prevNested[funcName][key1] ~= nil
-    and prevNested[funcName][key1][key2] ~= nil
-end
-
----Append nil tombstones for reward entries that are no longer present.
----Reward streams outlive the quest log membership stream during replay, so a
----removed reward index must write an explicit nil to avoid stale item data.
----@param t number
----@param tp number
----@param questId number
----@param fromRewardIndex number
----@param toRewardIndex number
-local function TombstoneRewardInfoRange(t, tp, questId, fromRewardIndex, toRewardIndex)
-  for rewardIndex = fromRewardIndex, toRewardIndex do
-    if HasNestedPrevious("GetQuestLogRewardInfo", rewardIndex, questId) then
-      AppendNestedIfChanged(
-        GetOrCreateNestedParamStream("GetQuestLogRewardInfo", rewardIndex, questId),
-        t, tp, nil, "GetQuestLogRewardInfo", rewardIndex, questId
-      )
-    end
-  end
-end
-
----Append reward tombstones for a quest leaving the quest log.
----Quest removal stops future per-quest reward sampling, so all reward-related
----latest values for that quest are invalidated in the same timestamp.
----@param t number
----@param tp number
----@param questId number
-local function TombstoneRemovedQuestRewards(t, tp, questId)
-  local questPrev = prevQuest[questId]
-  if questPrev then
-    if questPrev.GetNumQuestLogRewards ~= nil then
-      AppendIfChanged(
-        GetOrCreateParamStream("GetNumQuestLogRewards", questId),
-        t, tp, nil, questId, "GetNumQuestLogRewards"
-      )
-    end
-    if questPrev.GetQuestLogRewardMoney ~= nil then
-      AppendIfChanged(
-        GetOrCreateParamStream("GetQuestLogRewardMoney", questId),
-        t, tp, nil, questId, "GetQuestLogRewardMoney"
-      )
-    end
-  end
-
-  local previousRewardCount = prevRewardCounts[questId] or 0
-  if previousRewardCount > 0 then
-    TombstoneRewardInfoRange(t, tp, questId, 1, previousRewardCount)
-    prevRewardCounts[questId] = nil
-  end
-end
-
 ---Safely call a function and return the first result.
 ---@param fn function?
 ---@param ... any
@@ -335,14 +275,140 @@ local function SafePackedCall(fn, ...)
   return true, out
 end
 
----Append explicit inactive state for quests removed from the quest log.
----Most quest streams are interpreted alongside the synthetic QuestLog membership
----stream, but `C_QuestLog.IsOnQuest` is a direct boolean API and must receive a
----false tombstone so replay does not keep the previous true value forever.
+---Probe one scalar, questId-keyed raw API and append the exact returned value.
+---@param funcName string
+---@param fn function?
+---@param t number
+---@param tp number
+---@param questId number
+local function ProbeQuestScalar(funcName, fn, t, tp, questId)
+  local ok, value = SafeScalarCall(fn, questId)
+  if ok then
+    AppendIfChanged(
+      GetOrCreateParamStream(funcName, questId),
+      t, tp, value, questId, funcName
+    )
+  end
+end
+
+---Probe one packed, questId-keyed raw API and append the exact returned tuple.
+---@param funcName string
+---@param fn function?
+---@param t number
+---@param tp number
+---@param questId number
+local function ProbeQuestPacked(funcName, fn, t, tp, questId)
+  local ok, value = SafePackedCall(fn, questId)
+  if ok then
+    AppendIfChanged(
+      GetOrCreateParamStream(funcName, questId),
+      t, tp, value, questId, funcName
+    )
+  end
+end
+
+---Probe reward APIs for a quest ID, including previously observed reward indices.
+---These are raw API streams: every stored value comes from a successful API call.
+---If a stale index errors after reward count shrinks or after quest removal, the
+---trace records no invented value for that failed call.
+---@param t number
+---@param tp number
+---@param questId number
+local function ProbeQuestRewards(t, tp, questId)
+  local previousRewardCount = prevRewardCounts[questId] or 0
+  local currentRewardCount = 0
+
+  local rewardsOk, rewardCount = SafeScalarCall(GetNumQuestLogRewards, questId)
+  if rewardsOk then
+    AppendIfChanged(
+      GetOrCreateParamStream("GetNumQuestLogRewards", questId),
+      t, tp, rewardCount, questId, "GetNumQuestLogRewards"
+    )
+    if type(rewardCount) == "number" then
+      currentRewardCount = math.max(0, math.floor(rewardCount))
+      if currentRewardCount > previousRewardCount then
+        prevRewardCounts[questId] = currentRewardCount
+        previousRewardCount = currentRewardCount
+      end
+    end
+  end
+
+  local moneyOk, rewardMoney = SafeScalarCall(GetQuestLogRewardMoney, questId)
+  if moneyOk then
+    AppendIfChanged(
+      GetOrCreateParamStream("GetQuestLogRewardMoney", questId),
+      t, tp, rewardMoney, questId, "GetQuestLogRewardMoney"
+    )
+  end
+
+  local maxRewardIndex = math.max(previousRewardCount, currentRewardCount)
+  for rewardIndex = 1, maxRewardIndex do
+    local rewardOk, rewardInfo = SafePackedCall(GetQuestLogRewardInfo, rewardIndex, questId)
+    if rewardOk then
+      AppendNestedIfChanged(
+        GetOrCreateNestedParamStream("GetQuestLogRewardInfo", rewardIndex, questId),
+        t, tp, rewardInfo, "GetQuestLogRewardInfo", rewardIndex, questId
+      )
+    end
+  end
+end
+
+---Probe raw direct questID APIs and append exact observed return values.
+---Used both while a quest is active and after it disappears from QuestLog.
+---@param t number
+---@param tp number
+---@param questId number
+local function ProbeQuestDirectApis(t, tp, questId)
+  ProbeQuestScalar("IsQuestComplete", IsQuestComplete, t, tp, questId)
+  ProbeQuestScalar("HaveQuestData", HaveQuestData, t, tp, questId)
+
+  if type(C_QuestLog) == "table" then
+    ProbeQuestScalar("C_QuestLog.IsOnQuest", C_QuestLog.IsOnQuest, t, tp, questId)
+    ProbeQuestScalar("C_QuestLog.IsQuestFlaggedCompleted", C_QuestLog.IsQuestFlaggedCompleted, t, tp, questId)
+    ProbeQuestScalar("C_QuestLog.GetQuestObjectives", C_QuestLog.GetQuestObjectives, t, tp, questId)
+  end
+
+  ProbeQuestPacked("GetQuestTagInfo", GetQuestTagInfo, t, tp, questId)
+  ProbeQuestRewards(t, tp, questId)
+end
+
+---Probe a removed quest after the current event stack has settled.
+---@param capture CaptureState
+---@param questId number
+local function ProbeRemovedQuestLater(capture, questId)
+  if not capture.active or not capture.session then return end
+  local t = GetTime() - capture.startedAt
+  local tp = GetTimePreciseSec() - capture.startedAtPrecise
+  ProbeQuestDirectApis(t, tp, questId)
+end
+
+---Schedule post-invalidation probes for a quest that left QuestLog.
+---The immediate caller performs the first probe at the removal timestamp; these
+---delayed probes capture exact API behavior after Blizzard state settles.
+---@param capture CaptureState
+---@param questId number
+local function SchedulePostInvalidationProbes(capture, questId)
+  local token = capture.token
+  for i = 1, #SAMPLE_DELAYS do
+    local delay = SAMPLE_DELAYS[i]
+    if delay > 0 then
+      C_After(delay, function()
+        if not capture.active or capture.token ~= token then return end
+        ProbeRemovedQuestLater(capture, questId)
+      end)
+    end
+  end
+end
+
+---Run post-invalidation probes for quests removed from the quest log.
+---Raw function streams are not given invented inactive values here. Instead,
+---the tracker calls the underlying APIs for the removed quest ID and records
+---exactly what those APIs return, immediately and after delayed retries.
+---@param capture CaptureState
 ---@param t number
 ---@param tp number
 ---@param currentQuestIds number[]
-local function SampleRemovedQuestState(t, tp, currentQuestIds)
+local function ProbeRemovedQuestState(capture, t, tp, currentQuestIds)
   if not prevQuestLog then return end
 
   ---@type table<number, boolean>
@@ -351,17 +417,11 @@ local function SampleRemovedQuestState(t, tp, currentQuestIds)
     currentSet[currentQuestIds[i]] = true
   end
 
-  local canSampleIsOnQuest = type(C_QuestLog) == "table" and type(C_QuestLog.IsOnQuest) == "function"
   for i = 1, #prevQuestLog do
     local questId = prevQuestLog[i]
     if not currentSet[questId] then
-      if canSampleIsOnQuest then
-        AppendIfChanged(
-          GetOrCreateParamStream("C_QuestLog.IsOnQuest", questId),
-          t, tp, false, questId, "C_QuestLog.IsOnQuest"
-        )
-      end
-      TombstoneRemovedQuestRewards(t, tp, questId)
+      ProbeQuestDirectApis(t, tp, questId)
+      SchedulePostInvalidationProbes(capture, questId)
     end
   end
 end
@@ -433,13 +493,13 @@ local function SampleQuestLog(capture)
   ---@type number[]
   local questIds = GetAllQuestIdsInLog()
 
-  -- QuestLog membership is the source of truth for which questID-keyed streams
-  -- are currently meaningful. Tombstones for direct boolean/reward APIs are
-  -- written before the membership update so both changes share the same sample.
+  -- QuestLog membership discovers which quest IDs are active. When a quest
+  -- leaves this list, raw direct questID APIs are probed again rather than
+  -- receiving invented inactive values.
   ---@type FunctionStreamEntry[]
   local questLogStream = functions["QuestLog"]
   if not prevQuestLog or not DeepCompare(questIds, prevQuestLog) then
-    SampleRemovedQuestState(t, tp, questIds)
+    ProbeRemovedQuestState(capture, t, tp, questIds)
 
     ---@type number[]
     local copy = {}
@@ -448,7 +508,9 @@ local function SampleQuestLog(capture)
     prevQuestLog = copy
   end
 
-  -- Timer APIs are native parameterless varargs; derive questId-keyed compatibility streams.
+  -- Timer APIs are native parameterless varargs; these questId-keyed streams are
+  -- explicit derived compatibility streams, so nil writes for disappeared timer
+  -- mappings are schema-level invalidations rather than raw API return values.
   SampleQuestTimers(t, tp)
 
   -- C_QuestLog.GetMaxNumQuestsCanAccept -- scalar number
@@ -464,57 +526,8 @@ local function SampleQuestLog(capture)
 
   -- Per-quest functions (parameterized by questId)
   for _, questId in ipairs(questIds) do
-    -- IsQuestComplete -- scalar boolean
-    ---@type boolean?
-    local isComplete = IsQuestComplete(questId)
-    if isComplete == nil then isComplete = false end
-    AppendIfChanged(
-      GetOrCreateParamStream("IsQuestComplete", questId),
-      t, tp, isComplete, questId, "IsQuestComplete"
-    )
-
-    -- HaveQuestData -- scalar boolean/nil (older clients/addons use this to gate quest cache reads)
-    if type(HaveQuestData) == "function" then
-      ---@type boolean
-      local ok
-      ---@type boolean?
-      local hasData
-      ok, hasData = pcall(HaveQuestData, questId)
-      if ok then
-        AppendIfChanged(
-          GetOrCreateParamStream("HaveQuestData", questId),
-          t, tp, hasData, questId, "HaveQuestData"
-        )
-      end
-    end
-
-    -- C_QuestLog.IsOnQuest -- scalar boolean/nil
-    if type(C_QuestLog) == "table" and type(C_QuestLog.IsOnQuest) == "function" then
-      local ok, isOnQuest = SafeScalarCall(C_QuestLog.IsOnQuest, questId)
-      if ok then
-        AppendIfChanged(
-          GetOrCreateParamStream("C_QuestLog.IsOnQuest", questId),
-          t, tp, isOnQuest, questId, "C_QuestLog.IsOnQuest"
-        )
-      end
-    end
-
-    -- C_QuestLog.IsQuestFlaggedCompleted -- scalar boolean
-    ---@type boolean?
-    local isFlagged = C_QuestLog.IsQuestFlaggedCompleted(questId)
-    if isFlagged == nil then isFlagged = false end
-    AppendIfChanged(
-      GetOrCreateParamStream("C_QuestLog.IsQuestFlaggedCompleted", questId),
-      t, tp, isFlagged, questId, "C_QuestLog.IsQuestFlaggedCompleted"
-    )
-
-    -- C_QuestLog.GetQuestObjectives -- object/table (no n)
-    ---@type table?
-    local objectives = C_QuestLog.GetQuestObjectives(questId)
-    AppendIfChanged(
-      GetOrCreateParamStream("C_QuestLog.GetQuestObjectives", questId),
-      t, tp, objectives, questId, "C_QuestLog.GetQuestObjectives"
-    )
+    -- Raw direct questID APIs: append only values returned by successful calls.
+    ProbeQuestDirectApis(t, tp, questId)
 
     -- GetQuestLogTitle -- tuple (needs questLogIndex lookup)
     ---@type number?
@@ -537,52 +550,6 @@ local function SampleQuestLog(capture)
       end
     end
 
-    -- Quest reward APIs are quest-scoped except GetQuestLogRewardInfo, which is
-    -- a true two-argument API. Store it as [rewardIndex][questId] to preserve
-    -- native argument order and tombstone stale reward indices when counts shrink.
-    local rewardsOk, rewardCount = SafeScalarCall(GetNumQuestLogRewards, questId)
-    if rewardsOk then
-      AppendIfChanged(
-        GetOrCreateParamStream("GetNumQuestLogRewards", questId),
-        t, tp, rewardCount, questId, "GetNumQuestLogRewards"
-      )
-
-      local currentRewardCount = type(rewardCount) == "number" and math.max(0, math.floor(rewardCount)) or 0
-      local previousRewardCount = prevRewardCounts[questId] or 0
-
-      if currentRewardCount > 0 then
-        for rewardIndex = 1, currentRewardCount do
-          local rewardOk, rewardInfo = SafePackedCall(GetQuestLogRewardInfo, rewardIndex, questId)
-          if rewardOk then
-            AppendNestedIfChanged(
-              GetOrCreateNestedParamStream("GetQuestLogRewardInfo", rewardIndex, questId),
-              t, tp, rewardInfo, "GetQuestLogRewardInfo", rewardIndex, questId
-            )
-          end
-        end
-      end
-
-      if previousRewardCount > currentRewardCount then
-        TombstoneRewardInfoRange(t, tp, questId, currentRewardCount + 1, previousRewardCount)
-      end
-      prevRewardCounts[questId] = currentRewardCount
-    end
-
-    local moneyOk, rewardMoney = SafeScalarCall(GetQuestLogRewardMoney, questId)
-    if moneyOk then
-      AppendIfChanged(
-        GetOrCreateParamStream("GetQuestLogRewardMoney", questId),
-        t, tp, rewardMoney, questId, "GetQuestLogRewardMoney"
-      )
-    end
-
-    -- GetQuestTagInfo -- tuple
-    ---@type PackedArgs
-    local tagData = PackArgs(GetQuestTagInfo(questId))
-    AppendIfChanged(
-      GetOrCreateParamStream("GetQuestTagInfo", questId),
-      t, tp, tagData, questId, "GetQuestTagInfo"
-    )
   end
 end
 

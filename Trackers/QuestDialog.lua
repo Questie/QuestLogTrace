@@ -30,16 +30,12 @@ local functions
 local previousValues
 ---@type table<string, boolean>
 local availableFlatStreams
----@type table<number, FunctionStreamEntry[]>
-local activeTitleStreams
----@type table<number, FunctionStreamEntry[]>
-local availableTitleStreams
 ---@type number
-local previousActiveTitleCount = 0
+local maxActiveTitleCount = 0
 ---@type number
-local previousAvailableTitleCount = 0
+local maxAvailableTitleCount = 0
 ---@type number
-local delayedSampleToken = 0 -- Invalidates pending delayed samples when transient UI state closes.
+local delayedSampleToken = 0 -- Invalidates pending delayed samples when dialog/gossip state changes.
 
 ---Return whether a nested table function exists.
 ---@param namespace table?
@@ -244,89 +240,6 @@ end
 ---@type QuestDialogStreamDef[]
 local flatStreamDefs
 
--- Inactive-state policy for close events. Each group writes the shape callers
--- expect outside a dialog instead of letting the last open-dialog value linger.
----@type table<string, boolean>
-local tableResetStreams = {
-  ["C_GossipInfo.GetOptions"] = true,
-}
-
----@type table<string, boolean>
-local zeroResetStreams = {
-  ["C_GossipInfo.GetNumAvailableQuests"] = true,
-  ["C_GossipInfo.GetNumActiveQuests"] = true,
-  GetNumGossipAvailableQuests = true,
-  GetNumGossipActiveQuests = true,
-  GetNumActiveQuests = true,
-  GetNumAvailableQuests = true,
-  GetNumQuestChoices = true,
-  GetQuestID = true,
-}
-
----@type table<string, boolean>
-local nilResetStreams = {
-  ["C_GossipInfo.GetText"] = true,
-  GetGreetingText = true,
-  GetTitleText = true,
-  GetQuestText = true,
-  GetObjectiveText = true,
-  GetProgressText = true,
-  GetRewardText = true,
-  GetRewardXP = true,
-}
-
----@type table<string, boolean>
-local emptyPackedResetStreams = {
-  GetGossipAvailableQuests = true,
-  GetGossipActiveQuests = true,
-}
-
----Append an inactive value to a parameterless stream, but only if that stream exists.
----@param t number
----@param tp number
----@param key string
----@param value any
-local function ResetFlatStream(t, tp, key, value)
-  if not availableFlatStreams[key] then return end
-
-  local stream = functions[key]
-  ---@cast stream FunctionStreamEntry[]
-  AppendIfChanged(stream, t, tp, key, value)
-end
-
----Append deterministic inactive dialog state after close/finish events.
----Close events are hard boundaries for transient NPC UI state. The token bump
----cancels any delayed samples scheduled by the open/update event so stale API
----values cannot be reintroduced after these tombstones.
----@param t number
----@param tp number
-local function ResetInactiveDialogState(t, tp)
-  delayedSampleToken = delayedSampleToken + 1
-
-  for key in pairs(tableResetStreams) do
-    ResetFlatStream(t, tp, key, {})
-  end
-  for key in pairs(zeroResetStreams) do
-    ResetFlatStream(t, tp, key, 0)
-  end
-  for key in pairs(nilResetStreams) do
-    ResetFlatStream(t, tp, key, nil)
-  end
-  for key in pairs(emptyPackedResetStreams) do
-    ResetFlatStream(t, tp, key, { n = 0 })
-  end
-  ResetFlatStream(t, tp, "IsQuestCompletable", false)
-
-  for index, stream in pairs(activeTitleStreams) do
-    AppendIfChanged(stream, t, tp, "GetActiveTitle:" .. index, nil)
-  end
-  for index, stream in pairs(availableTitleStreams) do
-    AppendIfChanged(stream, t, tp, "GetAvailableTitle:" .. index, nil)
-  end
-  previousActiveTitleCount = 0
-  previousAvailableTitleCount = 0
-end
-
 ---Return whether an event closes transient dialog/gossip state.
 ---@param event string
 ---@return boolean
@@ -334,49 +247,38 @@ local function IsCloseEvent(event)
   return event == "GOSSIP_CLOSED" or event == "QUEST_FINISHED"
 end
 
----Sample indexed greeting title APIs and reset stale indices when counts shrink.
+---Sample indexed greeting title APIs.
+---Keep the highest counts for this capture so delayed samples retry stale
+---indices even when the first shrink probe errors or returns unsettled data.
+---Failed calls are skipped; raw streams never receive invented inactive values.
 ---@param t number
 ---@param tp number
 local function SampleTitleStreams(t, tp)
   if type(GetNumActiveQuests) == "function" and type(GetActiveTitle) == "function" then
     local ok, count = SafeScalarCall(GetNumActiveQuests)
     if ok and type(count) == "number" then
-      for index = 1, count do
+      maxActiveTitleCount = math.max(maxActiveTitleCount, count)
+      for index = 1, maxActiveTitleCount do
         local titleOk, titleData = SafePackedIndexCall(GetActiveTitle, index)
         if titleOk then
           local stream = GetOrCreateIndexStream("GetActiveTitle", index)
-          activeTitleStreams[index] = stream
           AppendIfChanged(stream, t, tp, "GetActiveTitle:" .. index, titleData)
         end
       end
-      for index = count + 1, previousActiveTitleCount do
-        local stream = activeTitleStreams[index]
-        if stream then
-          AppendIfChanged(stream, t, tp, "GetActiveTitle:" .. index, nil)
-        end
-      end
-      previousActiveTitleCount = count
     end
   end
 
   if type(GetNumAvailableQuests) == "function" and type(GetAvailableTitle) == "function" then
     local ok, count = SafeScalarCall(GetNumAvailableQuests)
     if ok and type(count) == "number" then
-      for index = 1, count do
+      maxAvailableTitleCount = math.max(maxAvailableTitleCount, count)
+      for index = 1, maxAvailableTitleCount do
         local titleOk, title = SafeScalarIndexCall(GetAvailableTitle, index)
         if titleOk then
           local stream = GetOrCreateIndexStream("GetAvailableTitle", index)
-          availableTitleStreams[index] = stream
           AppendIfChanged(stream, t, tp, "GetAvailableTitle:" .. index, title)
         end
       end
-      for index = count + 1, previousAvailableTitleCount do
-        local stream = availableTitleStreams[index]
-        if stream then
-          AppendIfChanged(stream, t, tp, "GetAvailableTitle:" .. index, nil)
-        end
-      end
-      previousAvailableTitleCount = count
     end
   end
 end
@@ -397,10 +299,10 @@ local function SampleQuestDialog(capture)
   return t, tp
 end
 
----Schedule staggered re-samples to catch dialog state settling after events.
----Quest and gossip frames may expose incomplete values in the event call stack;
----the token ties callbacks to the latest open/update event and lets close events
----invalidate all pending delayed reads.
+---Schedule staggered re-samples to catch dialog state settling after open/update events.
+---Quest and gossip frames may expose incomplete values in the event call stack.
+---Close events cancel these pending delayed reads and perform a single observed
+---close-state sample instead of writing synthetic reset values.
 ---@param capture CaptureState
 local function ScheduleDelayedSamples(capture)
   delayedSampleToken = delayedSampleToken + 1
@@ -434,10 +336,8 @@ Core.RegisterTracker({
     functions = capture.session.functions
     previousValues = {}
     availableFlatStreams = {}
-    activeTitleStreams = {}
-    availableTitleStreams = {}
-    previousActiveTitleCount = 0
-    previousAvailableTitleCount = 0
+    maxActiveTitleCount = 0
+    maxAvailableTitleCount = 0
     delayedSampleToken = 0
     flatStreamDefs = BuildFlatStreamDefs()
 
@@ -448,13 +348,16 @@ Core.RegisterTracker({
   ---@param capture CaptureState
   ---@param event string
   OnEvent = function(capture, event)
-    local t, tp = SampleQuestDialog(capture)
     if IsCloseEvent(event) then
-      -- Do not schedule more reads after a close boundary; reset writes are the
-      -- authoritative inactive state until a new dialog/gossip event opens UI.
-      ResetInactiveDialogState(t, tp)
+      -- Close boundaries are causal sampling points for mutable dialog/gossip
+      -- APIs. Cancel pending open/update delayed reads, sample the APIs once,
+      -- and record only the observed return values.
+      delayedSampleToken = delayedSampleToken + 1
+      SampleQuestDialog(capture)
       return
     end
+
+    SampleQuestDialog(capture)
     ScheduleDelayedSamples(capture)
   end,
 })

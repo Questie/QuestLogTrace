@@ -346,6 +346,8 @@ function Core.StartCapture(sessionName)
 
   capture.session = {
     schemaVersion = SCHEMA_VERSION,
+    -- Mark new captures only; existing v9 sessions may contain synthetic resets.
+    recordingContractVersion = 1,
     name = Trim(sessionName) ~= "" and Trim(sessionName) or nil,
     startedAt        = capture.startedAt,
     startedAtPrecise = capture.startedAtPrecise,

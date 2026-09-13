@@ -16,6 +16,7 @@ time T?" for every captured function.
 ```lua
 SessionRecord = {
   schemaVersion = 9,
+  recordingContractVersion = 1,
   name = "2026-02-10_12-34-56",       -- session identifier
 
   -- Absolute clock baselines (seconds)
@@ -31,6 +32,14 @@ SessionRecord = {
   functionsDelta = { [functionKey] = DeltaStream, ... },
 }
 ```
+
+`recordingContractVersion = 1` identifies the observed-only raw API contract
+used by new captures. Synthetic/derived streams remain exceptions as documented
+below. An absent marker means legacy/unknown semantics, including for schema v9:
+those sessions may contain invented resets or normalized API returns. Consumers
+must recognize version `1` explicitly; unsupported versions are unknown. Do not
+backfill this field on older sessions. Existing saves/settings are preserved and
+the storage schema remains v9.
 
 - `events` — ordered time-series of game events that fired during the session.
 - `functions` — captured WoW API return values over time (change-only).
@@ -310,7 +319,11 @@ streams, described below).
 ## 9) Complete function catalog
 
 Every function key that can appear in `session.functions`, organized by
-parameter type.
+parameter type. In sessions marked `recordingContractVersion = 1`, raw API
+function streams store observed successful API returns only. Event-driven
+close/removal/count-shrink probes may record nil, zero, empty string, or empty
+table values, but only when those values came from the API call
+itself. Explicit synthetic/derived streams are marked below.
 
 ### Parameterless functions
 
@@ -371,7 +384,7 @@ Called with `"player"` as the argument.
 | `UnitSex` | scalar number | Sex ID |
 | `UnitFactionGroup` | tuple (n=2) | englishFaction, localizedFaction |
 | `C_Map.GetBestMapForUnit` | scalar number | Map ID |
-| `C_Map.GetPlayerMapPosition` | object {x, y} | Coordinates (rounded to 4 decimals) |
+| `C_Map.GetPlayerMapPosition` | object {x, y}/nil | Derived compatibility: current-map coordinates rounded to 4 decimals; nil when map/position is unavailable, including when no position API call was possible |
 
 ### Parameterized by quest ID (number)
 
@@ -381,9 +394,9 @@ Called with a quest ID as the argument.
 |---|---|---|
 | `IsQuestComplete` | scalar boolean | Whether quest is completable |
 | `HaveQuestData` | scalar boolean/nil | Quest cache availability |
-| `C_QuestLog.IsOnQuest` | scalar boolean/nil | Whether quest is in log; false tombstone on removal |
-| `C_QuestLog.IsQuestFlaggedCompleted` | scalar boolean | Whether quest is flagged complete |
-| `C_QuestLog.GetQuestObjectives` | object (table[]) | Array of objective info objects |
+| `C_QuestLog.IsOnQuest` | scalar boolean/nil | Raw API result; probed again after quest leaves log |
+| `C_QuestLog.IsQuestFlaggedCompleted` | scalar boolean/nil | Raw API result; related to but not derived from `GetQuestsCompleted` |
+| `C_QuestLog.GetQuestObjectives` | object (table[]/nil) | Raw API result; probed again after quest leaves log |
 | `GetQuestLogTitle` | tuple (n=17) | title, level, suggestedGroup, isHeader, ... |
 | `GetQuestLogQuestText` | tuple (n=2) | questDescription, questObjectives |
 | `GetQuestTimers` | scalar number/nil | Derived questId-keyed seconds-left |
@@ -396,7 +409,7 @@ Called with a quest ID as the argument.
 
 | Function key | Shape | Return type | Description |
 |---|---|---|---|
-| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Reward item tuple; tombstoned when stale |
+| `GetQuestLogRewardInfo` | `[rewardIndex][questId]` | tuple (n=7) or nil | Raw reward item API result; previously observed indices are probed again after counts shrink or quest leaves log |
 
 ### Parameterized by greeting index
 
@@ -410,19 +423,19 @@ Called with a quest ID as the argument.
 | Function key | Return type | Description |
 |---|---|---|
 | `UnitGUID` | scalar string or nil | GUID; nil when no unit |
-| `UnitName` | tuple (n=2) or nil | name, realm; nil when no unit |
+| `UnitName` | packed tuple (n varies) | observed `UnitName(token)` returns; no synthetic `UnitExists` mapping |
 
 ### Parameterized by loot slot index (number)
 
 | Function key | Return type | Description |
 |---|---|---|
-| `GetLootSlotInfo` | tuple (n=9) or nil | Loot info; nil when window closed |
-| `GetLootSourceInfo` | tuple (n=2) or nil | Source GUID, quantity |
-| `GetLootSlotLink` | scalar string or nil | Item link |
-| `GetLootSlotType` | scalar number or nil | Loot type enum |
-| `GetSpellBookItemName` | tuple (n=3) or nil | spellName, spellSubName, spellID |
-| `GetSpellBookItemInfo` | tuple (n=2) or nil | spellType, id |
-| `IsPassiveSpell` | scalar number/nil | passive spell marker |
+| `GetLootSlotInfo` | tuple (n varies) | observed loot slot info return |
+| `GetLootSourceInfo` | tuple (n varies) | observed loot source return |
+| `GetLootSlotLink` | scalar string/nil | observed loot link return |
+| `GetLootSlotType` | scalar number/nil | observed loot type return |
+| `GetSpellBookItemName` | tuple (n varies) | observed spellbook name return |
+| `GetSpellBookItemInfo` | tuple (n varies) | observed spellbook info return |
+| `IsPassiveSpell` | scalar number/nil | observed passive marker return |
 
 ### Parameterized by skill/profession index (number)
 
@@ -448,13 +461,14 @@ Called with a quest ID as the argument.
 
 ## 10) Synthetic functions
 
-Two function keys are **not** direct WoW API names. They are computed by
+Three function keys are **not** direct WoW API names. They are computed by
 the capture system but stored identically to other streams:
 
 | Function key | Value type | Description |
 |---|---|---|
 | `QuestLog` | object (number[]) | Array of quest IDs currently in the player's quest log. Computed by iterating `GetQuestLogTitle` during capture. |
 | `FactionOrder` | object (number[]) | Ordered array of faction IDs as displayed in the reputation panel. Computed by iterating `GetFactionInfo` and expanding headers during capture. |
+| `SpellBook` | object (number[]) | Ordered unique spell IDs discovered by enumerating spellbook slots. |
 
 These are read like any parameterless function:
 

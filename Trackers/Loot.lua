@@ -33,10 +33,39 @@ local PackArgs = Core.PackArgs
 ---@field type FunctionStreamEntry[]
 
 -- Stream references (set during Init)
----@type table<string, FunctionStreamEntry[]|table<string|number, FunctionStreamEntry[]>>
+---@type table<string, FunctionStream>
 local functions
 ---@type table<number, LootSlotStreams>? [slot] -> { info=stream, source=stream, link=stream, type=stream }
 local lootSlotStreams
+
+---Safely call a function and return the first result.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return any value
+local function SafeScalarCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local ok, value = pcall(fn, ...)
+  if not ok then return false, nil end
+  return true, value
+end
+
+---Safely call a function and pack all returned values.
+---@param fn function?
+---@param ... any
+---@return boolean ok
+---@return PackedArgs? value
+local function SafePackedCall(fn, ...)
+  if type(fn) ~= "function" then return false, nil end
+  local packed = PackArgs(pcall(fn, ...))
+  if not packed[1] then return false, nil end
+
+  local out = { n = packed.n - 1 }
+  for i = 2, packed.n do
+    out[i - 1] = packed[i]
+  end
+  return true, out
+end
 
 --- Get or create a parameterized function stream for a given function name and key.
 ---@param funcName string
@@ -46,104 +75,123 @@ local function GetOrCreateParamStream(funcName, key)
   if not functions[funcName] then
     functions[funcName] = {}
   end
-  if not functions[funcName][key] then
-    functions[funcName][key] = {}
+  local streams = functions[funcName]
+  ---@cast streams table<string|number, FunctionStreamEntry[]>
+  if not streams[key] then
+    streams[key] = {}
   end
-  return functions[funcName][key]
+  return streams[key]
 end
 
---- Sample all loot slots when loot window opens.
+---Append a scalar value to a stream if it changed.
+---@param stream FunctionStreamEntry[]
+---@param t number
+---@param tp number
+---@param value any
+local function AppendScalarIfChanged(stream, t, tp, value)
+  local prev = stream[#stream]
+  if not prev or prev.v ~= value then
+    stream[#stream + 1] = { t = t, tp = tp, v = value }
+  end
+end
+
+---Append a packed value to a stream if it changed.
+---@param stream FunctionStreamEntry[]
+---@param t number
+---@param tp number
+---@param value PackedArgs
+local function AppendPackedIfChanged(stream, t, tp, value)
+  local prev = stream[#stream]
+  if not prev or not DeepCompare(prev.v, value) then
+    stream[#stream + 1] = { t = t, tp = tp, v = value }
+  end
+end
+
+---Ensure stream references exist for a loot slot.
+---@param slot number
+---@return LootSlotStreams streams
+local function GetOrCreateSlotStreams(slot)
+  lootSlotStreams = lootSlotStreams or {}
+  if not lootSlotStreams[slot] then
+    lootSlotStreams[slot] = {
+      info = GetOrCreateParamStream("GetLootSlotInfo", slot),
+      source = GetOrCreateParamStream("GetLootSourceInfo", slot),
+      link = GetOrCreateParamStream("GetLootSlotLink", slot),
+      type = GetOrCreateParamStream("GetLootSlotType", slot),
+    }
+  end
+  return lootSlotStreams[slot]
+end
+
+---Sample GetNumLootItems and append the observed API return.
+---@param t number
+---@param tp number
+---@return number? itemCount
+local function SampleLootCount(t, tp)
+  local ok, itemCount = SafeScalarCall(GetNumLootItems)
+  if not ok then return nil end
+
+  local countStream = functions["GetNumLootItems"]
+  ---@cast countStream FunctionStreamEntry[]
+  AppendScalarIfChanged(countStream, t, tp, itemCount)
+
+  if type(itemCount) == "number" then return itemCount end
+  return nil
+end
+
+---Probe one loot slot and append successful observed API returns.
+---@param t number
+---@param tp number
+---@param slot number
+local function ProbeLootSlot(t, tp, slot)
+  local streams = GetOrCreateSlotStreams(slot)
+
+  local infoOk, info = SafePackedCall(GetLootSlotInfo, slot)
+  if infoOk and info then
+    AppendPackedIfChanged(streams.info, t, tp, info)
+  end
+
+  local sourceOk, source = SafePackedCall(GetLootSourceInfo, slot)
+  if sourceOk and source then
+    AppendPackedIfChanged(streams.source, t, tp, source)
+  end
+
+  local linkOk, link = SafeScalarCall(GetLootSlotLink, slot)
+  if linkOk then
+    AppendScalarIfChanged(streams.link, t, tp, link)
+  end
+
+  local typeOk, slotType = SafeScalarCall(GetLootSlotType, slot)
+  if typeOk then
+    AppendScalarIfChanged(streams.type, t, tp, slotType)
+  end
+end
+
+---Sample current loot slots by calling raw APIs.
 ---@param capture CaptureState
 local function SampleLootOpen(capture)
-  if type(GetNumLootItems) ~= "function" then return end
-
-  ---@type number?
-  local itemCount = GetNumLootItems()
-  if type(itemCount) ~= "number" or itemCount < 1 then return end
-
-  ---@type number
-  local t  = GetTime()          - capture.startedAt
-  ---@type number
+  local t = GetTime() - capture.startedAt
   local tp = GetTimePreciseSec() - capture.startedAtPrecise
-
-  -- GetNumLootItems (parameterless)
-  ---@type FunctionStreamEntry[]
-  local countStream = functions["GetNumLootItems"]
-  ---@type FunctionStreamEntry?
-  local prevCount = countStream[#countStream]
-  if not prevCount or prevCount.v ~= itemCount then
-    countStream[#countStream + 1] = { t = t, tp = tp, v = itemCount }
-  end
-
-  -- Per-slot functions
-  lootSlotStreams = lootSlotStreams or {}
+  local itemCount = SampleLootCount(t, tp)
+  if not itemCount or itemCount < 1 then return end
 
   for slot = 1, itemCount do
-    if not lootSlotStreams[slot] then
-      lootSlotStreams[slot] = {
-        info   = GetOrCreateParamStream("GetLootSlotInfo", slot),
-        source = GetOrCreateParamStream("GetLootSourceInfo", slot),
-        link   = GetOrCreateParamStream("GetLootSlotLink", slot),
-        type   = GetOrCreateParamStream("GetLootSlotType", slot),
-      }
-    end
-    ---@type LootSlotStreams
-    local streams = lootSlotStreams[slot]
-
-    -- GetLootSlotInfo -- tuple
-    if type(GetLootSlotInfo) == "function" then
-      ---@type PackedArgs
-      local v = PackArgs(GetLootSlotInfo(slot))
-      streams.info[#streams.info + 1] = { t = t, tp = tp, v = v }
-    end
-
-    -- GetLootSourceInfo -- tuple
-    if type(GetLootSourceInfo) == "function" then
-      ---@type PackedArgs
-      local v = PackArgs(GetLootSourceInfo(slot))
-      streams.source[#streams.source + 1] = { t = t, tp = tp, v = v }
-    end
-
-    -- GetLootSlotLink -- scalar
-    if type(GetLootSlotLink) == "function" then
-      ---@type string?
-      local v = GetLootSlotLink(slot)
-      streams.link[#streams.link + 1] = { t = t, tp = tp, v = v }
-    end
-
-    -- GetLootSlotType -- scalar
-    if type(GetLootSlotType) == "function" then
-      ---@type number?
-      local v = GetLootSlotType(slot)
-      streams.type[#streams.type + 1] = { t = t, tp = tp, v = v }
-    end
+    ProbeLootSlot(t, tp, slot)
   end
 end
 
---- Record loot window close by zeroing counts and nil-ing slot streams.
+---Sample loot APIs at close without inventing inactive values.
+---Known slot indices are probed because close is the causal event where raw
+---loot APIs may naturally change to nil/zero/error states.
 ---@param capture CaptureState
 local function SampleLootClose(capture)
-  ---@type number
-  local t  = GetTime()          - capture.startedAt
-  ---@type number
+  local t = GetTime() - capture.startedAt
   local tp = GetTimePreciseSec() - capture.startedAtPrecise
+  SampleLootCount(t, tp)
 
-  -- GetNumLootItems -> 0
-  ---@type FunctionStreamEntry[]
-  local countStream = functions["GetNumLootItems"]
-  ---@type FunctionStreamEntry?
-  local prevCount = countStream[#countStream]
-  if not prevCount or prevCount.v ~= 0 then
-    countStream[#countStream + 1] = { t = t, tp = tp, v = 0 }
-  end
-
-  -- All known slots -> nil (skip if already nil)
   if lootSlotStreams then
-    for _, streams in pairs(lootSlotStreams) do
-      if streams.info[#streams.info]   and streams.info[#streams.info].v   ~= nil then streams.info[#streams.info + 1]     = { t = t, tp = tp, v = nil } end
-      if streams.source[#streams.source] and streams.source[#streams.source].v ~= nil then streams.source[#streams.source + 1] = { t = t, tp = tp, v = nil } end
-      if streams.link[#streams.link]   and streams.link[#streams.link].v   ~= nil then streams.link[#streams.link + 1]     = { t = t, tp = tp, v = nil } end
-      if streams.type[#streams.type]   and streams.type[#streams.type].v   ~= nil then streams.type[#streams.type + 1]     = { t = t, tp = tp, v = nil } end
+    for slot in pairs(lootSlotStreams) do
+      ProbeLootSlot(t, tp, slot)
     end
   end
 end
@@ -154,14 +202,16 @@ Core.RegisterTracker({
   ---@param capture CaptureState
   Init = function(capture)
     functions = capture.session.functions
-    functions["GetNumLootItems"] = { { t = 0, tp = 0, v = 0 } }
+    functions["GetNumLootItems"] = {}
     lootSlotStreams = nil
+
+    -- Initial sample stores the observed API return, if the API is available.
+    SampleLootCount(0, 0)
   end,
 
   ---@param capture CaptureState
   ---@param event string
-  ---@param ... any
-  OnEvent = function(capture, event, ...)
+  OnEvent = function(capture, event)
     if event == "LOOT_READY" then
       SampleLootOpen(capture)
     elseif event == "LOOT_CLOSED" then

@@ -22,9 +22,9 @@ all six; change detection skips the append when the value hasn't changed.
 | `UnitGUID` | `"target"` | scalar (string or nil) | `==` |
 | `UnitGUID` | `"npc"` | scalar (string or nil) | `==` |
 | `UnitGUID` | `"questnpc"` | scalar (string or nil) | `==` |
-| `UnitName` | `"target"` | tuple (n=2) or nil | `DeepCompare` |
-| `UnitName` | `"npc"` | tuple (n=2) or nil | `DeepCompare` |
-| `UnitName` | `"questnpc"` | tuple (n=2) or nil | `DeepCompare` |
+| `UnitName` | `"target"` | packed observed returns (n varies) | `DeepCompare` |
+| `UnitName` | `"npc"` | packed observed returns (n varies) | `DeepCompare` |
+| `UnitName` | `"questnpc"` | packed observed returns (n varies) | `DeepCompare` |
 
 ### Return shapes
 
@@ -32,9 +32,10 @@ all six; change detection skips the append when the value hasn't changed.
   (`"Creature-0-1234-0-5678-1234-00001A2B3C"`) or `nil` when no unit.
   Stored as scalar `v`.
 
-- **`UnitName(token)`** returns `name, realm` (realm is `nil` when
-  same-server). Stored as `PackedArgs` with `n = 2`:
-  `{ "Innkeeper Farley", nil, n = 2 }`.
+- **`UnitName(token)`** is stored as the packed observed return values from
+  directly calling `UnitName(token)`. Commonly this is `name, realm` with
+  `n = 2`, e.g. `{ "Innkeeper Farley", nil, n = 2 }`, but no-unit or
+  client-specific returns may have a different `n`.
 
 ### Init (t = 0)
 
@@ -199,16 +200,10 @@ Core.RegisterTracker({
   `{ "Name", nil, n = 2 }`. The `n` difference ensures change detection
   works.
 
-  **Alternative:** Guard with `UnitExists(token)` and store `nil`
-  directly instead of packing. This would be simpler:
-  ```lua
-  local nameVal = UnitExists(token) and PackArgs(UnitName(token)) or nil
-  ```
-  This maps "no unit" to `v = nil` (clean) and "unit present" to
-  `v = { "Name", nil, n = 2 }`. Comparison: `DeepCompare` for
-  table-to-table, `==` for nil-to-nil, and type mismatch (table vs nil)
-  returns `false` from `DeepCompare` automatically. **This is the
-  recommended approach.**
+  Do not guard with `UnitExists(token)` to synthesize plain `nil` for
+  `UnitName`. `UnitName(token)` is a raw API stream, so the tracker calls it
+  directly and stores the packed observed return values. This preserves whether
+  the API returned one nil, two values, or another client-specific shape.
 
 ---
 
@@ -277,7 +272,7 @@ Add new entries to the function catalog in section 9:
 | Function key | Return type | Notes |
 |---|---|---|
 | `UnitGUID` | scalar (string) or nil | GUID string; nil when no unit |
-| `UnitName` | tuple (n=2) or nil | name, realm; nil when no unit |
+| `UnitName` | packed tuple (n varies) | observed `UnitName(token)` returns; no synthetic `UnitExists` mapping |
 
 ---
 
@@ -301,10 +296,10 @@ already tells consumers whether a sample was triggered by
 - Change detection means most events produce zero or one append per
   stream, not six.
 
-### Why `UnitExists` guard for `UnitName`?
+### Why no `UnitExists` guard for `UnitName`?
 
-Without it, `PackArgs(UnitName(token))` when no unit returns `{ n = 1 }`
-(a table with one nil). With it, we store plain `nil` for "no unit",
-matching the `UnitGUID` pattern and producing cleaner data.
-`UnitGUID` doesn't need the guard because it naturally returns `nil` as
-a scalar.
+`UnitName(token)` is a raw API stream. The tracker calls `UnitName(token)`
+directly and stores the packed observed return values instead of mapping
+`UnitExists(token) == false` to a synthetic nil. This keeps the trace faithful
+to the API behavior of mutable unit tokens such as `"target"`, `"npc"`, and
+`"questnpc"` at the event timestamp.
