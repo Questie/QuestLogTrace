@@ -1,6 +1,8 @@
 ---@type QuestLogTraceCore
 local Core = QuestLogTraceCore
 
+local C_After = C_Timer.After
+
 ---------------------------------------------------------------------------
 -- WoW API return schemas (for trace analyzer display labels)
 ---------------------------------------------------------------------------

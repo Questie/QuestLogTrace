@@ -9,8 +9,7 @@ local Core = QuestLogTraceCore
 ---@type fun(table: table, metatable: table?): table
 local setmetatable = setmetatable
 ---@type fun(delay: number, callback: function)
-local l_C_After = C_Timer.After
-C_After = C_Timer.After
+local C_After = C_Timer.After
 
 ---------------------------------------------------------------------------
 -- Shared type definitions (used across all trackers)
@@ -126,7 +125,7 @@ C_After = C_Timer.After
 --! Be careful with this because the order of defered functions is not guaranteed
 ---@param func function The function to execute on the next frame
 Defer = function(func)
-  l_C_After(0, func)
+  C_After(0, func)
 end
 
 --- No Operation
@@ -361,7 +360,7 @@ do
   ---@return T
   function LazyLoad_After(moduleName, alwaysLoadAfter, createFunction)
     local module = LazyLoad(moduleName, createFunction)
-    l_C_After(alwaysLoadAfter, function()
+    C_After(alwaysLoadAfter, function()
       if QuestLog[moduleName] == module then
         QuestLog[moduleName] = createFunction()
       end
