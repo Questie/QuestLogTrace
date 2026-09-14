@@ -1,12 +1,12 @@
 # Architecture Spec (v9)
 
-File structure, load order, bootstrap sequence, SavedVariables management, and event/dump routing for QuestLogTrace.
+File structure, load order, bootstrap sequence, SavedVariables management, and event/dump routing for QuestieTrace.
 
 ---
 
 ## 1) File load order
 
-Defined by `QuestLogTrace-Classic.toc`:
+Defined by `QuestieTrace-Classic.toc`:
 
 ```text
 globals.lua                   -- Core namespace, utilities, RegisterTracker/RegisterDump APIs
@@ -24,17 +24,17 @@ Trackers/SkillLines.lua       -- Skill window + profession tabs
 Trackers/SpellBook.lua        -- Raw spellbook slots + PlayerKnownSpells
 Trackers/ResetTime.lua        -- GetServerTime and GetQuestResetTime
 Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
-QuestLogTrace_UI.lua          -- Control frame UI
-QuestLogTrace.lua             -- Entry point: session lifecycle, event bus, slash commands
+QuestieTrace_UI.lua          -- Control frame UI
+QuestieTrace.lua             -- Entry point: session lifecycle, event bus, slash commands
 ```
 
 ### Load order rationale
 
-1. `globals.lua` establishes `QuestLogTraceCore`, shared types, utility helpers, tracker registration, and dump registration.
+1. `globals.lua` establishes `QuestieTraceCore`, shared types, utility helpers, tracker registration, and dump registration.
 2. Tracker files call `Core.RegisterTracker` at file scope so event routing tables exist before the event frame is created.
 3. Dump files call `Core.RegisterDump` at file scope so dump event/slash routing exists before bootstrap.
-4. `QuestLogTrace_UI.lua` defines optional UI functions used by the main file.
-5. `QuestLogTrace.lua` runs last, creates the event frame, registers tracked events, and handles slash commands.
+4. `QuestieTrace_UI.lua` defines optional UI functions used by the main file.
+5. `QuestieTrace.lua` runs last, creates the event frame, registers tracked events, and handles slash commands.
 
 ---
 
@@ -50,7 +50,7 @@ On `VARIABLES_LOADED`:
 
 After bootstrap:
 
-- `PLAYER_LOGIN` starts capture automatically when `QuestLogTrace.settings.autoStart ~= false`; this happens before event processing so `PLAYER_LOGIN` is the first event in an auto-started session.
+- `PLAYER_LOGIN` starts capture automatically when `QuestieTrace.settings.autoStart ~= false`; this happens before event processing so `PLAYER_LOGIN` is the first event in an auto-started session.
 - `PLAYER_LOGOUT` is processed first, then an active capture is saved, so logout is included in the saved session.
 
 ---
@@ -71,16 +71,16 @@ Current categories are organizational only and are not persisted:
 - `group_world`
 - `inventory`
 
-Tracker routing is separate: `Core._trackerCallbacks[event]` controls which trackers sample for a specific event. `ADDON_LOADED` is filtered so only `QuestLogTrace`'s own load event is recorded.
+Tracker routing is separate: `Core._trackerCallbacks[event]` controls which trackers sample for a specific event. `ADDON_LOADED` is filtered so only `QuestieTrace`'s own load event is recorded.
 
 ---
 
 ## 4) SavedVariables
 
-### Account-level: `QuestLogTrace`
+### Account-level: `QuestieTrace`
 
 ```lua
-QuestLogTrace = {
+QuestieTrace = {
   schemaVersion = 9,
   settings = {
     maxSessions = 20,
@@ -89,10 +89,10 @@ QuestLogTrace = {
 }
 ```
 
-### Account-level: `QuestLogTraceDumps`
+### Account-level: `QuestieTraceDumps`
 
 ```lua
-QuestLogTraceDumps = {
+QuestieTraceDumps = {
   schemaVersion = 1,
   dumps = {
     map_hierarchy = MapHierarchyDumpData,
@@ -100,10 +100,10 @@ QuestLogTraceDumps = {
 }
 ```
 
-### Per-character: `QuestLogTraceCharacter`
+### Per-character: `QuestieTraceCharacter`
 
 ```lua
-QuestLogTraceCharacter = {
+QuestieTraceCharacter = {
   lastSavedSession = "2026-02-10_12-34-56", -- set on save only
   sessions = { SessionRecord, ... },
 }
@@ -111,25 +111,25 @@ QuestLogTraceCharacter = {
 
 ### Migration behavior
 
-- If `QuestLogTrace` is missing or has a non-v9 schema, the account settings table is recreated with defaults.
+- If `QuestieTrace` is missing or has a non-v9 schema, the account settings table is recreated with defaults.
 - Missing/invalid `settings.maxSessions` resets to 20.
 - Missing `settings.autoStart` defaults to `true`.
-- `QuestLogTraceDumps` and its `dumps` table are ensured.
-- Existing `QuestLogTraceCharacter.sessions` data is preserved when it is already a table; otherwise it is initialized to an empty table.
+- `QuestieTraceDumps` and its `dumps` table are ensured.
+- Existing `QuestieTraceCharacter.sessions` data is preserved when it is already a table; otherwise it is initialized to an empty table.
 
 ---
 
 ## 5) Session pruning and naming
 
-After every save, sessions over `QuestLogTrace.settings.maxSessions` are pruned oldest-first. If no name is supplied at start/save, sessions use `date("%Y-%m-%d_%H-%M-%S")`; `/qlt save [name]` overrides a start-time name.
+After every save, sessions over `QuestieTrace.settings.maxSessions` are pruned oldest-first. If no name is supplied at start/save, sessions use `date("%Y-%m-%d_%H-%M-%S")`; `/qlt save [name]` overrides a start-time name.
 
 ---
 
 ## 6) Auto-start and control surface
 
-`QuestLogTrace.settings.autoStart` controls login capture. It defaults to `true` and can be toggled by `/qlt auto` or the control-frame checkbox.
+`QuestieTrace.settings.autoStart` controls login capture. It defaults to `true` and can be toggled by `/qlt auto` or the control-frame checkbox.
 
-Slash command aliases are `/questlogtrace` and `/qlt`:
+Slash command aliases are `/questietrace` and `/qlt`:
 
 | Command | Purpose |
 |---|---|

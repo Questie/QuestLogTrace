@@ -1,7 +1,7 @@
-QuestLogTraceCore = QuestLogTraceCore or {}
+QuestieTraceCore = QuestieTraceCore or {}
 
----@class QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@class QuestieTraceCore
+local Core = QuestieTraceCore
 
 ---------------------------------------------------------------------------
 -- Shared type definitions (used across all trackers)
@@ -92,7 +92,7 @@ local Core = QuestLogTraceCore
 ---@field minY number
 ---@field maxY number
 
----@class QuestLogTraceMapEntry
+---@class QuestieTraceMapEntry
 ---@field name string
 ---@field parentMapID number
 ---@field mapType number
@@ -106,10 +106,10 @@ local Core = QuestLogTraceCore
 ---@field rootSeeds number[]
 ---@field topUiMapIDs number[]
 ---@field mapsWithChildren number[]
----@field maps table<number, QuestLogTraceMapEntry>
+---@field maps table<number, QuestieTraceMapEntry>
 ---@field rectOnMap table<number, table<number, MapRectData>>
 
----@class QuestLogTraceDumpsData
+---@class QuestieTraceDumpsData
 ---@field schemaVersion number
 ---@field dumps table<string, any>
 
@@ -275,9 +275,9 @@ function Core.RunDumpsForEvent(event, ...)
     local dump = callbacks[i]
     local ok, err = pcall(dump.Run, event, ...)
     if not ok then
-      print("QuestLogTrace", "Dump failed:", dump.key, err)
+      print("QuestieTrace", "Dump failed:", dump.key, err)
     elseif err then
-      print("QuestLogTrace", "Dump warning:", dump.key, err)
+      print("QuestieTrace", "Dump warning:", dump.key, err)
     end
   end
 end
@@ -291,9 +291,9 @@ function Core.RunDumpBySlash(action, ...)
   if not dump then return false end
   local ok, err = pcall(dump.Run, "SLASH", ...)
   if not ok then
-    print("QuestLogTrace", "Dump failed:", dump.key, err)
+    print("QuestieTrace", "Dump failed:", dump.key, err)
   elseif err then
-    print("QuestLogTrace", "Dump warning:", dump.key, err)
+    print("QuestieTrace", "Dump warning:", dump.key, err)
   end
   return true
 end

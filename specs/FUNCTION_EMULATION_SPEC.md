@@ -1,6 +1,6 @@
 # Function Emulation Spec (v9)
 
-How to reconstruct WoW API function outputs at a target time `t` from QuestLogTrace saved data.
+How to reconstruct WoW API function outputs at a target time `t` from QuestieTrace saved data.
 
 The observed-only raw API guarantee applies to sessions with
 `recordingContractVersion = 1`. Unmarked sessions, including older schema v9

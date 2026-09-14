@@ -1,5 +1,5 @@
----@type QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@type QuestieTraceCore
+local Core = QuestieTraceCore
 
 local C_After = C_Timer.After
 

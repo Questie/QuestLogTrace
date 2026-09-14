@@ -16,11 +16,11 @@
 **Code Directories:**
   - `./Trackers` contains all the implementations of different areas we track in World of Warcraft.
 **Code Files:**
-  - `./QuestLogTrace-Classic.toc` World of Warcraft toc file - how files are loaded
-  - `./QuestLogTrace.lua` - Entrypoint
+  - `./QuestieTrace-Classic.toc` World of Warcraft toc file - how files are loaded
+  - `./QuestieTrace.lua` - Entrypoint
   - `./globals.lua` - Global variables and constants
-  - `./QuestLogTrace_StateTracking.lua` - State tracking and management
-  - `./QuestLogTrace_UI.lua` - User interface code
+  - `./QuestieTrace_StateTracking.lua` - State tracking and management
+  - `./QuestieTrace_UI.lua` - User interface code
 
 **Forbidden folders**
 

@@ -1,6 +1,6 @@
 # wrk-questie Merge Notes
 
-Source branch: `origin/wrk-questie` / sibling worktree `../QuestLogTrace-wrk-questie`.
+Source branch: `origin/wrk-questie` / sibling worktree `../QuestieTrace-wrk-questie`.
 
 ## Original intent from `MERGE.md`
 
@@ -58,11 +58,11 @@ Merged into `merge/wrk-questie-reconcile`:
 - Added recursive/nested function stream support to Lua annotations and trace analyzer lookup/UI.
 - Kept movement start/stop as private Position sampling triggers, not recorded trace events.
 - Added `Core.GetDiagnosticSession()` so bridge/tests can inspect the live unsaved session or newest saved session read-only by convention.
-- Preserved existing per-character saved sessions on load instead of resetting `QuestLogTraceCharacter.sessions`.
+- Preserved existing per-character saved sessions on load instead of resetting `QuestieTraceCharacter.sessions`.
 
 Preserved from current master:
 
-- `QuestLogTraceDumps`, dump registry APIs, dump slash/event routing, and `Dumps/MapHierarchy.lua`.
+- `QuestieTraceDumps`, dump registry APIs, dump slash/event routing, and `Dumps/MapHierarchy.lua`.
 - `GroupState`, `SkillLines`, and `SpellBook` trackers.
 - `UnitFactionGroup`, `GetQuestGreenRange`, instance streams, group streams, skill/profession streams, spellbook streams, and `PlayerKnownSpells` delta stream.
 - `C_GossipInfo.GetAvailableQuests`, `C_GossipInfo.GetActiveQuests`, and `GetQuestLogQuestText` documentation/implementation.

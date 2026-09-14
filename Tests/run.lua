@@ -7,7 +7,7 @@
 
 ---@class TestRuntime
 ---@field env table<string, any>
----@field core QuestLogTraceCore
+---@field core QuestieTraceCore
 ---@field now number
 ---@field timers TestTimer[]
 ---@field frame table<string, any>
@@ -17,7 +17,7 @@
 local function LoadAddonFile(runtime, path)
   local chunk = assert(loadfile(path))
   setfenv(chunk, runtime.env)
-  chunk("QuestLogTrace", runtime.env.QuestLog)
+  chunk("QuestieTrace", runtime.env.QuestLog)
 end
 
 ---@param trackerFiles string[]
@@ -30,8 +30,8 @@ local function NewRuntime(trackerFiles)
   env._G = env
   env.QuestLog = {}
   env.SlashCmdList = {}
-  env.QuestLogTrace = { schemaVersion = 9, settings = { maxSessions = 7, autoStart = false } }
-  env.QuestLogTraceCharacter = { sessions = {} }
+  env.QuestieTrace = { schemaVersion = 9, settings = { maxSessions = 7, autoStart = false } }
+  env.QuestieTraceCharacter = { sessions = {} }
   env.print = function() end
   env.GetTime = function() return runtime.now end
   env.GetTimePreciseSec = env.GetTime
@@ -52,8 +52,8 @@ local function NewRuntime(trackerFiles)
 
   LoadAddonFile(runtime, "globals.lua")
   for _, path in ipairs(trackerFiles) do LoadAddonFile(runtime, path) end
-  LoadAddonFile(runtime, "QuestLogTrace.lua")
-  runtime.core = env.QuestLogTraceCore
+  LoadAddonFile(runtime, "QuestieTrace.lua")
+  runtime.core = env.QuestieTraceCore
   return runtime
 end
 
@@ -189,10 +189,10 @@ local function TestSessionContract()
     events = {}, functions = { GetNumLootItems = { { t = 0, tp = 0, v = 0 } } }, functionsDelta = {},
   }
   local env = runtime.env
-  local settings = env.QuestLogTrace.settings
-  env.QuestLogTraceCharacter.sessions[1] = legacy
+  local settings = env.QuestieTrace.settings
+  env.QuestieTraceCharacter.sessions[1] = legacy
   SendEvent(runtime, "VARIABLES_LOADED")
-  assert(env.QuestLogTrace.settings == settings and settings.maxSessions == 7 and settings.autoStart == false,
+  assert(env.QuestieTrace.settings == settings and settings.maxSessions == 7 and settings.autoStart == false,
     "Recording contract must not reset existing settings")
 
   runtime.core.StartCapture("new capture")
@@ -200,9 +200,9 @@ local function TestSessionContract()
   assert(current.schemaVersion == 9 and current.recordingContractVersion == 1,
     "New captures need contract provenance without a storage schema bump")
   runtime.core.SaveCapture()
-  assert(env.QuestLogTraceCharacter.sessions[2] == current and current.recordingContractVersion == 1,
+  assert(env.QuestieTraceCharacter.sessions[2] == current and current.recordingContractVersion == 1,
     "Saving must retain the recording contract")
-  assert(env.QuestLogTraceCharacter.sessions[1] == legacy and legacy.recordingContractVersion == nil,
+  assert(env.QuestieTraceCharacter.sessions[1] == legacy and legacy.recordingContractVersion == nil,
     "Legacy sessions must survive unchanged and unmarked")
 end
 

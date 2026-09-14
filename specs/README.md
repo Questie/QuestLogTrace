@@ -1,6 +1,6 @@
-# QuestLogTrace Specs
+# QuestieTrace Specs
 
-Agent-facing index for QuestLogTrace, a WoW Classic Era addon that records quest/gameplay events and WoW API return streams for offline replay. Schema version 9.
+Agent-facing index for QuestieTrace, a WoW Classic Era addon that records quest/gameplay events and WoW API return streams for offline replay. Schema version 9.
 
 ---
 
@@ -40,9 +40,9 @@ Agent-facing index for QuestLogTrace, a WoW Classic Era addon that records quest
 ├─────────────────────────────────────────────────────────┤
 │  Dumps/               Map hierarchy dump provider       │
 ├─────────────────────────────────────────────────────────┤
-│  QuestLogTrace_UI     Control frame + auto-start toggle │
+│  QuestieTrace_UI     Control frame + auto-start toggle │
 ├─────────────────────────────────────────────────────────┤
-│  QuestLogTrace        Event bus, session lifecycle,     │
+│  QuestieTrace        Event bus, session lifecycle,     │
 │                       slash commands, bootstrap         │
 └─────────────────────────────────────────────────────────┘
 ```

@@ -202,7 +202,7 @@ No events. Sampled once at capture start (`t=0`).
 Events related to addon loading, login, and logout. `ADDON_LOADED` is
 filtered so only the addon's own load event is recorded in the stream.
 
-- `ADDON_LOADED` (filtered: only recorded when `addonName == "QuestLogTrace"`)
+- `ADDON_LOADED` (filtered: only recorded when `addonName == "QuestieTrace"`)
 - `PLAYER_LOGOUT` *(also ResetTime + auto-save handling)*
 - `PLAYER_LEAVING_WORLD`
 - `LOADING_SCREEN_DISABLED`
@@ -275,7 +275,7 @@ to trackers for login-time data sampling (see tracker sections above).
   uses `LOOT_READY` (fires when loot data is available), not `LOOT_OPENED`
   (fires when the loot UI opens, data may not be ready).
 - `ADDON_LOADED` fires for every addon. An event filter in `OnEvent`
-  skips it unless `addonName == "QuestLogTrace"`, so only the addon's
+  skips it unless `addonName == "QuestieTrace"`, so only the addon's
   own load appears in the event stream.
 - `PLAYER_LOGIN` triggers auto-start (if `autoStart` is enabled and no
   capture is active). Auto-start runs before `ProcessTrackedEvent` so

@@ -1,8 +1,8 @@
----@type QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@type QuestieTraceCore
+local Core = QuestieTraceCore
 
 ---@type string
-local ADDON_NAME = "QuestLogTrace"
+local ADDON_NAME = "QuestieTrace"
 ---@type number
 local MAP_DUMP_SCHEMA_VERSION = 1
 ---@type number[]
@@ -79,7 +79,7 @@ local function DumpMapHierarchy()
   end
   table.sort(allMapIDs)
 
-  ---@type table<number, QuestLogTraceMapEntry>
+  ---@type table<number, QuestieTraceMapEntry>
   local maps = {}
   ---@type number[]
   local mapsWithChildren = {}
@@ -89,7 +89,7 @@ local function DumpMapHierarchy()
     local mapID = allMapIDs[i]
     ---@type UiMapDetails?
     local info = C_Map.GetMapInfo(mapID)
-    ---@type QuestLogTraceMapEntry
+    ---@type QuestieTraceMapEntry
     local entry = {
       name = info and info.name or "Unknown",
       parentMapID = info and info.parentMapID or 0,
@@ -156,12 +156,12 @@ local function DumpMapHierarchy()
     end
   end
 
-  QuestLogTraceDumps = type(QuestLogTraceDumps) == "table" and QuestLogTraceDumps or {}
-  QuestLogTraceDumps.schemaVersion = type(QuestLogTraceDumps.schemaVersion) == "number" and QuestLogTraceDumps.schemaVersion or 1
-  QuestLogTraceDumps.dumps = type(QuestLogTraceDumps.dumps) == "table" and QuestLogTraceDumps.dumps or {}
+  QuestieTraceDumps = type(QuestieTraceDumps) == "table" and QuestieTraceDumps or {}
+  QuestieTraceDumps.schemaVersion = type(QuestieTraceDumps.schemaVersion) == "number" and QuestieTraceDumps.schemaVersion or 1
+  QuestieTraceDumps.dumps = type(QuestieTraceDumps.dumps) == "table" and QuestieTraceDumps.dumps or {}
 
   ---@type MapHierarchyDumpData
-  QuestLogTraceDumps.dumps.map_hierarchy = {
+  QuestieTraceDumps.dumps.map_hierarchy = {
     schemaVersion = MAP_DUMP_SCHEMA_VERSION,
     ---@diagnostic disable-next-line: assign-type-mismatch
     capturedAt = date("%Y-%m-%d_%H-%M-%S"),

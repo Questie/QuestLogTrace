@@ -2,10 +2,10 @@
 
 ## 1) SavedVariables
 
-### `QuestLogTrace` (account-level)
+### `QuestieTrace` (account-level)
 
 ```lua
-QuestLogTrace = {
+QuestieTrace = {
   schemaVersion = 9,
   settings = {
     maxSessions = 20,
@@ -14,10 +14,10 @@ QuestLogTrace = {
 }
 ```
 
-### `QuestLogTraceDumps` (account-level)
+### `QuestieTraceDumps` (account-level)
 
 ```lua
-QuestLogTraceDumps = {
+QuestieTraceDumps = {
   schemaVersion = 1,
   dumps = {
     map_hierarchy = MapHierarchyDumpData,
@@ -25,10 +25,10 @@ QuestLogTraceDumps = {
 }
 ```
 
-### `QuestLogTraceCharacter` (per-character)
+### `QuestieTraceCharacter` (per-character)
 
 ```lua
-QuestLogTraceCharacter = {
+QuestieTraceCharacter = {
   lastSavedSession = "2026-02-10_12-34-56",
   sessions = { SessionRecord, ... },
 }
@@ -52,7 +52,7 @@ first (FIFO). Default limit is 20.
 
 ## 2) SessionRecord
 
-Each `/qlt save` appends one record to `QuestLogTraceCharacter.sessions`.
+Each `/qlt save` appends one record to `QuestieTraceCharacter.sessions`.
 
 ```lua
 SessionRecord = {

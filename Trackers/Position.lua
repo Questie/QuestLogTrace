@@ -1,5 +1,5 @@
----@type QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@type QuestieTraceCore
+local Core = QuestieTraceCore
 ---@type fun(num: number?, decimals: number?): number?
 local Round = Core.Round
 ---@type fun(...): PackedArgs

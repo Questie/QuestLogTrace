@@ -122,7 +122,7 @@ Total: **35 events** in the tracker's `events` array.
 ## 4) Implementation sketch
 
 ```lua
-local Core = QuestLogTraceCore
+local Core = QuestieTraceCore
 local PackArgs = Core.PackArgs
 
 local TOKENS = { "target", "npc", "questnpc" }
@@ -209,7 +209,7 @@ Core.RegisterTracker({
 
 ## 5) Changes to existing files
 
-### `QuestLogTrace.lua`
+### `QuestieTrace.lua`
 
 Add new event category to `TRACKED_EVENT_CATEGORIES`:
 
@@ -246,10 +246,10 @@ Add new event category to `TRACKED_EVENT_CATEGORIES`:
 These events are registered via `pcall` so unsupported events in
 different Classic versions are silently skipped.
 
-### `QuestLogTrace-Classic.toc`
+### `QuestieTrace-Classic.toc`
 
 Add `Trackers\UnitInteraction.lua` to the file list (before
-`QuestLogTrace.lua` since trackers must load before the main file
+`QuestieTrace.lua` since trackers must load before the main file
 registers events and calls Init).
 
 ### `specs/EVENT_CATALOG.md`

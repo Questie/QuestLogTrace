@@ -5,7 +5,7 @@
 // Used by the UI to render labeled values instead of raw tuples.
 //
 // Source: Documentation/WoW-API + warcraft.wiki.gg
-// Only functions tracked by QuestLogTrace are included.
+// Only functions tracked by QuestieTrace are included.
 // ============================================================
 
 export interface ReturnField {

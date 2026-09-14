@@ -1,6 +1,6 @@
-# AGENTS.md - QuestLogTrace WoW Addon
+# AGENTS.md - QuestieTrace WoW Addon
 
-QuestLogTrace is a World of Warcraft Classic addon written in Lua 5.1 that provides event tracing and function tracing capabilities for debugging and development.
+QuestieTrace is a World of Warcraft Classic addon written in Lua 5.1 that provides event tracing and function tracing capabilities for debugging and development.
 
 ## Build & Test Commands
 
@@ -22,7 +22,7 @@ lua Tests/run.lua
 ### Linting (Luacheck)
 
 ```bash
-luacheck -q -- Trackers globals.lua QuestLogTrace.lua QuestLogTrace_UI.lua
+luacheck -q -- Trackers globals.lua QuestieTrace.lua QuestieTrace_UI.lua
 ```
 
 ### Language Server
@@ -36,10 +36,10 @@ lua-language-server --check=.
 ## Project Structure
 
 ```
-QuestLogTrace.lua          - Main addon entry point (initialization, event handling)
-QuestLogTrace_UI.lua       - User interface code
+QuestieTrace.lua          - Main addon entry point (initialization, event handling)
+QuestieTrace_UI.lua       - User interface code
 globals.lua                - Global variables, constants, shared state
-QuestLogTrace_StateTracking.lua - State tracking and management
+QuestieTrace_StateTracking.lua - State tracking and management
 Trackers/                  - Individual tracking modules
     PlayerIdentity.lua     - Player identity tracking
     UnitLevel.lua          - Unit level tracking
@@ -81,7 +81,7 @@ Dumps/                     - Data dumps (e.g. MapHierarchy)
 
 ### Module System
 
-QuestLogTrace uses a simple module pattern. Trackers register themselves with the core.
+QuestieTrace uses a simple module pattern. Trackers register themselves with the core.
 
 **Creating a tracker** (in Trackers/):
 
@@ -105,7 +105,7 @@ function MyTracker:OnEvent(event, ...)
 end
 
 -- Register with core
-QuestLogTraceCore:RegisterTracker("MyTracker", MyTracker)
+QuestieTraceCore:RegisterTracker("MyTracker", MyTracker)
 ```
 
 ### Standard File Boilerplate
@@ -167,7 +167,7 @@ Reference: `./specs/LuaLS_annotations.md`
 
 ### Expansion-Specific Code
 
-QuestLogTrace targets Classic Era (1.14.3). Use feature detection:
+QuestieTrace targets Classic Era (1.14.3). Use feature detection:
 
 ```lua
 if C_GossipInfo then
@@ -214,7 +214,7 @@ Tests live in `Tests/run.lua` and use isolated Lua environments with mocked WoW 
 ---@return TestRuntime
 local function NewRuntime(trackerFiles)
     -- Creates isolated environment with mocked globals
-    -- Loads globals.lua, tracker files, QuestLogTrace.lua
+    -- Loads globals.lua, tracker files, QuestieTrace.lua
     -- Returns runtime with core, timers, frame mocks
 end
 
@@ -305,8 +305,8 @@ busted -p ".test.lua" .
 ### Adding a New Tracker
 
 1. Create `Trackers/NewTracker.lua` following the module pattern
-2. Add to `QuestLogTrace-Classic.toc` in load order
-3. Register with `QuestLogTraceCore:RegisterTracker("NewTracker", NewTracker)`
+2. Add to `QuestieTrace-Classic.toc` in load order
+3. Register with `QuestieTraceCore:RegisterTracker("NewTracker", NewTracker)`
 4. Add test cases in `Tests/run.lua`
 5. Update relevant specs in `specs/`
 
@@ -332,10 +332,10 @@ end)
 
 ### Data Storage
 
-Trackers store data in the session via `QuestLogTraceCore`:
+Trackers store data in the session via `QuestieTraceCore`:
 
 ```lua
-local session = QuestLogTraceCore:GetCurrentSession()
+local session = QuestieTraceCore:GetCurrentSession()
 session.events[#session.events + 1] = { t = time, e = "EVENT_NAME", data = {...} }
 ```
 

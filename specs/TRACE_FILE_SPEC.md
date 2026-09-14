@@ -1,6 +1,6 @@
 # Trace File Spec
 
-A QuestLogTrace trace file is a Lua table representing a recorded gameplay
+A QuestieTrace trace file is a Lua table representing a recorded gameplay
 session from World of Warcraft Classic Era. It captures WoW API function
 return values and game events over time, enabling offline replay without a
 running game client.
@@ -577,7 +577,7 @@ To build a complete emulator from this spec:
 local session = dofile("trace.lua")
 
 -- Or from SavedVariables:
-local sv = dofile("QuestLogTrace.lua")  -- per-character file
+local sv = dofile("QuestieTrace.lua")  -- per-character file
 local session = sv.sessions[1]          -- pick a session
 ```
 
@@ -629,11 +629,11 @@ emulation.
 
 ## 15) File origin
 
-Trace files are produced by the QuestLogTrace addon for World of Warcraft
+Trace files are produced by the QuestieTrace addon for World of Warcraft
 Classic Era. They are stored in WoW's SavedVariables system:
 
-- **Per-character:** `WTF/Account/<ACCOUNT>/SavedVariables/QuestLogTrace.lua`
-  contains `QuestLogTraceCharacter` with a `sessions` array.
+- **Per-character:** `WTF/Account/<ACCOUNT>/SavedVariables/QuestieTrace.lua`
+  contains `QuestieTraceCharacter` with a `sessions` array.
 - **Account-level:** Same path at account scope, contains settings only.
 
 Each session is a self-contained `SessionRecord`. It can be extracted and

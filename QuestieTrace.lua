@@ -1,10 +1,10 @@
-QuestLogTraceCore = QuestLogTraceCore or {}
+QuestieTraceCore = QuestieTraceCore or {}
 
----@class QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@class QuestieTraceCore
+local Core = QuestieTraceCore
 
 ---@type string
-local ADDON_NAME = "QuestLogTrace"
+local ADDON_NAME = "QuestieTrace"
 ---@type number
 local SCHEMA_VERSION = 9
 ---@type number
@@ -230,9 +230,9 @@ end
 --- Ensure SavedVariables tables exist and match the current schema version.
 local function EnsureSavedVariables()
   ---@type table?
-  local globalDb = QuestLogTrace
+  local globalDb = QuestieTrace
   if type(globalDb) ~= "table" or globalDb.schemaVersion ~= SCHEMA_VERSION then
-    QuestLogTrace = {
+    QuestieTrace = {
       schemaVersion = SCHEMA_VERSION,
       settings = {
         maxSessions = DEFAULT_MAX_SESSIONS,
@@ -240,35 +240,35 @@ local function EnsureSavedVariables()
     }
   end
 
-  QuestLogTrace.settings = type(QuestLogTrace.settings) == "table" and QuestLogTrace.settings or {}
-  if type(QuestLogTrace.settings.maxSessions) ~= "number" or QuestLogTrace.settings.maxSessions < 1 then
-    QuestLogTrace.settings.maxSessions = DEFAULT_MAX_SESSIONS
+  QuestieTrace.settings = type(QuestieTrace.settings) == "table" and QuestieTrace.settings or {}
+  if type(QuestieTrace.settings.maxSessions) ~= "number" or QuestieTrace.settings.maxSessions < 1 then
+    QuestieTrace.settings.maxSessions = DEFAULT_MAX_SESSIONS
   end
 
-  if QuestLogTrace.settings.autoStart == nil then
-    QuestLogTrace.settings.autoStart = true
+  if QuestieTrace.settings.autoStart == nil then
+    QuestieTrace.settings.autoStart = true
   end
 
-  if type(QuestLogTraceDumps) ~= "table" then
-    QuestLogTraceDumps = {
+  if type(QuestieTraceDumps) ~= "table" then
+    QuestieTraceDumps = {
       schemaVersion = 1,
       dumps = {},
     }
   end
-  if type(QuestLogTraceDumps.dumps) ~= "table" then
-    QuestLogTraceDumps.dumps = {}
+  if type(QuestieTraceDumps.dumps) ~= "table" then
+    QuestieTraceDumps.dumps = {}
   end
 
-  QuestLogTraceCharacter = type(QuestLogTraceCharacter) == "table" and QuestLogTraceCharacter or {}
-  QuestLogTraceCharacter.sessions = type(QuestLogTraceCharacter.sessions) == "table" and QuestLogTraceCharacter.sessions or {}
+  QuestieTraceCharacter = type(QuestieTraceCharacter) == "table" and QuestieTraceCharacter or {}
+  QuestieTraceCharacter.sessions = type(QuestieTraceCharacter.sessions) == "table" and QuestieTraceCharacter.sessions or {}
 end
 
 --- Remove oldest sessions if the count exceeds the configured maximum.
 local function PruneSessionsIfNeeded()
   ---@type number
-  local maxSessions = QuestLogTrace.settings.maxSessions
+  local maxSessions = QuestieTrace.settings.maxSessions
   ---@type SessionRecord[]
-  local sessions = QuestLogTraceCharacter.sessions
+  local sessions = QuestieTraceCharacter.sessions
   while #sessions > maxSessions do
     table.remove(sessions, 1)
   end
@@ -314,7 +314,7 @@ function Core.GetDiagnosticSession()
     return capture.session, capture.active and "active" or "stopped_unsaved"
   end
 
-  local characterDb = QuestLogTraceCharacter
+  local characterDb = QuestieTraceCharacter
   if type(characterDb) == "table" and type(characterDb.sessions) == "table" then
     local session = characterDb.sessions[#characterDb.sessions]
     if type(session) == "table" then
@@ -436,8 +436,8 @@ function Core.SaveCapture(nameOverride)
 
   -- The session IS the record — events, functions, functionsDelta are already
   -- populated in-place by the trackers. No serialization step needed.
-  QuestLogTraceCharacter.sessions[#QuestLogTraceCharacter.sessions + 1] = session
-  QuestLogTraceCharacter.lastSavedSession = session.name
+  QuestieTraceCharacter.sessions[#QuestieTraceCharacter.sessions + 1] = session
+  QuestieTraceCharacter.lastSavedSession = session.name
 
   PruneSessionsIfNeeded()
 
@@ -517,7 +517,7 @@ local function PrintHelp()
 end
 
 ---@param msg string? The slash command arguments
-SlashCmdList["QUESTLOGTRACE"] = function(msg)
+SlashCmdList["QUESTIETRACE"] = function(msg)
   ---@type string, string?
   local action, argument = strsplit(" ", msg or "", 2)
   action = string.lower(action or "")
@@ -535,8 +535,8 @@ SlashCmdList["QUESTLOGTRACE"] = function(msg)
   elseif action == "status" then
     PrintStatus()
   elseif action == "auto" then
-    QuestLogTrace.settings.autoStart = not QuestLogTrace.settings.autoStart
-    print(ADDON_NAME, "Auto-start on login:", QuestLogTrace.settings.autoStart and "enabled" or "disabled")
+    QuestieTrace.settings.autoStart = not QuestieTrace.settings.autoStart
+    print(ADDON_NAME, "Auto-start on login:", QuestieTrace.settings.autoStart and "enabled" or "disabled")
   elseif Core.RunDumpBySlash then
     Core.RunDumpBySlash(action, argument)
   elseif action == "ui" then
@@ -549,8 +549,8 @@ SlashCmdList["QUESTLOGTRACE"] = function(msg)
   end
 end
 
-SLASH_QUESTLOGTRACE1 = "/questlogtrace"
-SLASH_QUESTLOGTRACE2 = "/qlt"
+SLASH_QUESTIETRACE1 = "/questietrace"
+SLASH_QUESTIETRACE2 = "/qlt"
 
 ---------------------------------------------------------------------------
 -- Bootstrap
@@ -585,7 +585,7 @@ local function OnEvent(_, event, ...)
   end
   if event == "PLAYER_LOGIN" then
     if not capture.active then
-      local settings = QuestLogTrace and QuestLogTrace.settings
+      local settings = QuestieTrace and QuestieTrace.settings
       if settings and settings.autoStart ~= false then
         Core.StartCapture()
       end

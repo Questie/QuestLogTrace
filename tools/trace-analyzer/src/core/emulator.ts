@@ -2,7 +2,7 @@
 // Emulation engine — port of FUNCTION_EMULATION_SPEC v9
 //
 // Reconstructs WoW API function outputs at a target time `t`
-// from QuestLogTrace session data.
+// from QuestieTrace session data.
 // ============================================================
 
 import type {

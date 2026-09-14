@@ -39,7 +39,7 @@ If `events` is nil or absent, the tracker receives no event dispatches
 2. For each event in `events`, appends `OnEvent` to
    `Core._trackerCallbacks[event]` (an `event -> callback[]` lookup).
 
-At runtime, `ProcessTrackedEvent` in `QuestLogTrace.lua`:
+At runtime, `ProcessTrackedEvent` in `QuestieTrace.lua`:
 
 1. Records the raw event to `capture.session.events`.
 2. Looks up `Core._trackerCallbacks[event]`.
@@ -148,7 +148,7 @@ trackers IS the SessionRecord stored in SavedVariables.
 ### On SaveCapture
 
 1. Auto-stops if still running.
-2. Session is appended directly to `QuestLogTraceCharacter.sessions`.
+2. Session is appended directly to `QuestieTraceCharacter.sessions`.
 3. `capture.session` is set to `nil`.
 
 ### On ResetCapture

@@ -1,6 +1,6 @@
 # Trace Analyzer
 
-A dev/debug tool for loading, inspecting, and visualizing QuestLogTrace session recordings.
+A dev/debug tool for loading, inspecting, and visualizing QuestieTrace session recordings.
 
 ## Status
 
@@ -166,22 +166,22 @@ import { LuaState } from "lua-state";
 export function loadTraceFile(filePath: string): TraceFile {
   const lua = new LuaState();
   lua.evalFile(filePath);
-  const data = lua.getGlobal("QuestLogTraceCharacter") as TraceFile;
+  const data = lua.getGlobal("QuestieTraceCharacter") as TraceFile;
   return data;
 }
 ```
 
 3. Handle edge cases:
-   - Missing `QuestLogTraceCharacter` global → throw descriptive error
+   - Missing `QuestieTraceCharacter` global → throw descriptive error
    - Multiple trace files → accept a directory path, glob for `.lua` files
-4. Write a quick CLI smoke test: `npx tsx src/core/loader.ts ../../Traces/QuestLogTrace.lua`
+4. Write a quick CLI smoke test: `npx tsx src/core/loader.ts ../../Traces/QuestieTrace.lua`
 
 **Key detail:** lua-state converts Lua tables to JS objects. Lua arrays (1-indexed) become JS objects with numeric string keys (`{"1": ..., "2": ...}`), NOT JS arrays. The loader must normalize:
 - Lua arrays → JS arrays (check for sequential numeric keys starting at 1)
 - Preserve `n` field on packed args
 - Absent `v` field stays `undefined` (matches our nil convention)
 
-**Validate:** Load `Traces/QuestLogTrace.lua`, verify `sessions[0].name === "2026-02-12_21-13-42"` and basic structure.
+**Validate:** Load `Traces/QuestieTrace.lua`, verify `sessions[0].name === "2026-02-12_21-13-42"` and basic structure.
 
 ---
 
@@ -370,7 +370,7 @@ Basic 2D visualization of player position over time.
 ## Testing Plan
 
 - **Phase 1:** `npx tsc --noEmit` — types compile
-- **Phase 2:** CLI script loads `Traces/QuestLogTrace.lua`, prints session name + duration
+- **Phase 2:** CLI script loads `Traces/QuestieTrace.lua`, prints session name + duration
 - **Phase 3:** Unit tests for `valueAt`, `getStream`, `emulate`, `getCompletedQuests` against known trace values
 - **Phase 4:** `npm run dev` → browser shows session info + functional timeline
 - **Phase 5-7:** Manual verification by scrubbing timeline and cross-referencing with raw trace data

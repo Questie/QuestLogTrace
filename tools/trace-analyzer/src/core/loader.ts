@@ -7,21 +7,21 @@ import { normalizeLuaValue } from "./normalize.js";
 import type { TraceFile } from "./types.js";
 
 /**
- * Load a QuestLogTrace SavedVariables file and return typed data.
+ * Load a QuestieTrace SavedVariables file and return typed data.
  *
- * The file format is: `QuestLogTraceCharacter = { ... }`
+ * The file format is: `QuestieTraceCharacter = { ... }`
  * lua-state executes the Lua, then we extract the global.
  */
 export function loadTraceFile(filePath: string): TraceFile {
   const lua = new LuaState();
   lua.evalFile(filePath);
 
-  const raw = lua.getGlobal("QuestLogTraceCharacter");
+  const raw = lua.getGlobal("QuestieTraceCharacter");
 
   if (raw === null || raw === undefined) {
     throw new Error(
-      `No QuestLogTraceCharacter global found in ${filePath}. ` +
-        `Is this a valid QuestLogTrace SavedVariables file?`
+      `No QuestieTraceCharacter global found in ${filePath}. ` +
+        `Is this a valid QuestieTrace SavedVariables file?`
     );
   }
 

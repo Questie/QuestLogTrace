@@ -1,5 +1,5 @@
----@type QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@type QuestieTraceCore
+local Core = QuestieTraceCore
 ---@type fun(...): PackedArgs
 local PackArgs = Core.PackArgs
 ---@type fun(t1: any, t2: any, ignore_mt: boolean?, visited: table?): boolean

@@ -1,4 +1,4 @@
-QuestLogTraceCharacter = {
+QuestieTraceCharacter = {
   ["sessions"] = {
     {
       ["functions"] = {

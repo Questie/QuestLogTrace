@@ -1,5 +1,5 @@
----@type QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@type QuestieTraceCore
+local Core = QuestieTraceCore
 
 ---------------------------------------------------------------------------
 -- WoW API return schemas (for trace analyzer display labels)

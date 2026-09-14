@@ -1,7 +1,7 @@
-QuestLogTraceCore = QuestLogTraceCore or {}
+QuestieTraceCore = QuestieTraceCore or {}
 
----@class QuestLogTraceCore
-local Core = QuestLogTraceCore
+---@class QuestieTraceCore
+local Core = QuestieTraceCore
 
 ---@class ControlFrame : Frame
 ---@field startButton Button
@@ -71,7 +71,7 @@ end
 function Core.BuildControlFrame()
   if controlFrame then return end
 
-  local frame = CreateFrame("Frame", "QuestLogTraceControlFrame", UIParent) --[[@as ControlFrame]]
+  local frame = CreateFrame("Frame", "QuestieTraceControlFrame", UIParent) --[[@as ControlFrame]]
   frame:SetSize(250, 120)
   frame:SetPoint("TOP", UIParent, "TOP", 0, -50)
   frame:SetClampedToScreen(true)
@@ -97,7 +97,7 @@ function Core.BuildControlFrame()
 
   local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOP", 0, -8)
-  title:SetText("QuestLogTrace")
+  title:SetText("QuestieTrace")
 
   local startButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
   startButton:SetSize(72, 22)
@@ -138,9 +138,9 @@ function Core.BuildControlFrame()
   local autoCheck = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate") --[[@as CheckButton]]
   autoCheck:SetSize(24, 24)
   autoCheck:SetPoint("BOTTOMLEFT", 8, 6)
-  autoCheck:SetChecked(QuestLogTrace.settings.autoStart ~= false)
+  autoCheck:SetChecked(QuestieTrace.settings.autoStart ~= false)
   autoCheck:SetScript("OnClick", function(self)
-    QuestLogTrace.settings.autoStart = self:GetChecked()
+    QuestieTrace.settings.autoStart = self:GetChecked()
   end)
 
   local autoLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")

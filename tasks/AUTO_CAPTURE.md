@@ -11,7 +11,7 @@ commands remain available for early stop or named saves.
 ### Login flow
 
 ```
-ADDON_LOADED (QuestLogTrace)  →  EnsureSavedVariables (existing)
+ADDON_LOADED (QuestieTrace)  →  EnsureSavedVariables (existing)
 PLAYER_LOGIN                  →  Auto-start capture (if enabled)
 PLAYER_ENTERING_WORLD         →  Recorded normally (already tracked)
 SPELLS_CHANGED                →  Recorded normally (new event)
@@ -43,10 +43,10 @@ All existing commands still work:
 
 ## 2) Settings
 
-Add `autoStart` to `QuestLogTrace.settings`:
+Add `autoStart` to `QuestieTrace.settings`:
 
 ```lua
-QuestLogTrace = {
+QuestieTrace = {
   schemaVersion = 8,
   settings = {
     maxSessions = 20,
@@ -61,8 +61,8 @@ In `EnsureSavedVariables`, if `autoStart` is nil (fresh install or
 migration), default to `true`:
 
 ```lua
-if QuestLogTrace.settings.autoStart == nil then
-  QuestLogTrace.settings.autoStart = true
+if QuestieTrace.settings.autoStart == nil then
+  QuestieTrace.settings.autoStart = true
 end
 ```
 
@@ -73,16 +73,16 @@ Add a slash command to toggle:
 ### UI checkbox
 
 Add an "Auto-start" checkbox to the control frame in
-`QuestLogTrace_UI.lua`. Positioned below the status text area.
+`QuestieTrace_UI.lua`. Positioned below the status text area.
 
 ```lua
 local autoCheck = CreateFrame("CheckButton", nil, frame, "UICheckButtonTemplate")
   --[[@as CheckButton]]
 autoCheck:SetSize(24, 24)
 autoCheck:SetPoint("BOTTOMLEFT", 8, 6)
-autoCheck:SetChecked(QuestLogTrace.settings.autoStart ~= false)
+autoCheck:SetChecked(QuestieTrace.settings.autoStart ~= false)
 autoCheck:SetScript("OnClick", function(self)
-  QuestLogTrace.settings.autoStart = self:GetChecked()
+  QuestieTrace.settings.autoStart = self:GetChecked()
 end)
 
 local autoLabel = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -92,7 +92,7 @@ autoLabel:SetText("Auto-start on login")
 
 The frame height should increase slightly to accommodate the checkbox
 row (from 100 to ~120). The checkbox reads/writes
-`QuestLogTrace.settings.autoStart` directly — no restart required, the
+`QuestieTrace.settings.autoStart` directly — no restart required, the
 setting takes effect on the next login.
 
 ---
@@ -106,7 +106,7 @@ ours.
 
 ### Solution
 
-Add an event filter table in `QuestLogTrace.lua`:
+Add an event filter table in `QuestieTrace.lua`:
 
 ```lua
 local EVENT_FILTERS = {
@@ -179,7 +179,7 @@ local function OnEvent(_, event, ...)
   --    StartCapture BEFORE ProcessTrackedEvent so PLAYER_LOGIN
   --    is recorded as the first event in the session.
   if event == "PLAYER_LOGIN" and not capture.active then
-    local settings = QuestLogTrace and QuestLogTrace.settings
+    local settings = QuestieTrace and QuestieTrace.settings
     if settings and settings.autoStart ~= false then
       Core.StartCapture()
     end
@@ -251,7 +251,7 @@ enable splicing them together outside WoW.
 
 ## 8) Files to change
 
-### `QuestLogTrace.lua`
+### `QuestieTrace.lua`
 
 - Add `EVENT_FILTERS` table
 - Add `initialization` event category to `TRACKED_EVENT_CATEGORIES`
@@ -259,12 +259,12 @@ enable splicing them together outside WoW.
 - Modify `EnsureSavedVariables` to default `autoStart = true`
 - Add `/qlt auto` to slash command handler and help text
 
-### `QuestLogTrace_UI.lua`
+### `QuestieTrace_UI.lua`
 
 - Increase frame height from 100 to ~120
 - Add `CheckButton` with `UICheckButtonTemplate` for auto-start toggle
 - Add label `FontString` next to checkbox
-- Checkbox reads/writes `QuestLogTrace.settings.autoStart` on click
+- Checkbox reads/writes `QuestieTrace.settings.autoStart` on click
 
 ### `specs/EVENT_CATALOG.md`
 
