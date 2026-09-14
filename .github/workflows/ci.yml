@@ -59,8 +59,8 @@ jobs:
           luarocks install busted 2.2.0-1
           luarocks install luafilesystem 1.8.0-1
 
-#      - name: Run busted Unit Tests
-#        run: busted -p ".test.lua" .
+      - name: Run busted Unit Tests
+        run: busted -p ".test.lua" .
 
       - name: Run custom Unit Tests
         run: lua Tests/run.lua
