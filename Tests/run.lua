@@ -338,6 +338,7 @@ local function TestExportSerializationRoundTrips()
   -- Now load addon files with mocks in place
   LoadAddonFile(runtime, "Modules/globals.lua")
 
+  LoadAddonFile(runtime, "Modules/Export/Encoding.lua")
   LoadAddonFile(runtime, "Modules/Export/Export.lua")
   LoadAddonFile(runtime, "QuestieTrace.lua")
   runtime.core = env.QuestieTraceCore

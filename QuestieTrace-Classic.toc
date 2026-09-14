@@ -29,6 +29,7 @@ Modules/Trackers/ResetTime.lua
 
 Modules/Dumps/MapHierarchy.lua
 
+Modules/Export/Encoding.lua
 Modules/Export/Export.lua
 Modules/Export/ExportUI.lua
 

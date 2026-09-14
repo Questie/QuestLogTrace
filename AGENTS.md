@@ -57,6 +57,7 @@ Modules/                  - Core modules and tracking systems
     Dumps/                - Data dump providers
         MapHierarchy.lua   - C_Map hierarchy data dump
     Export/               - Data export functionality
+        Encoding.lua       - Codec support checks + CBOR/compression encoding
         Export.lua         - Export utilities
         ExportUI.lua       - Export window UI
 specs/                    - Design specifications
