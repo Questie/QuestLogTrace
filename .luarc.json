@@ -26,6 +26,8 @@
     ".types",
     "WoW-API",
     "./Libs/**",
+    "./Documentation/busted",
+    "./Documentation/luassert",
     "./Documentation/WoW-API"
     // "Libs" // Should this be here?
   ],
