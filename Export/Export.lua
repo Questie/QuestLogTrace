@@ -20,6 +20,33 @@ local SCRUB_TOKENS = { player = true }
 ---@type table<string, boolean>
 local SCRUB_FUNCTION_KEYS = { UnitName = true, UnitGUID = true }
 
+-- LibDeflate for print-safe encoding of compressed binary payloads.
+---@type LibDeflate
+local LibDeflate = LibStub("LibDeflate", true)
+
+--- Check whether the client has the required compression and encoding APIs.
+--- Every supported WoW client should have these; if missing, fail loudly.
+---@return boolean
+local function _HasCodecSupport()
+  local hasBlizzardEncoding = C_EncodingUtil ~= nil
+    and C_EncodingUtil.SerializeCBOR ~= nil
+    and C_EncodingUtil.DeserializeCBOR ~= nil
+    and C_EncodingUtil.CompressString ~= nil
+    and C_EncodingUtil.DecompressString ~= nil
+
+  local hasDeflateEnums = Enum ~= nil
+    and Enum.CompressionMethod ~= nil
+    and Enum.CompressionMethod.Deflate ~= nil
+    and Enum.CompressionLevel ~= nil
+    and Enum.CompressionLevel.Default ~= nil
+
+  local hasLibDeflate = LibDeflate ~= nil
+    and LibDeflate.EncodeForPrint ~= nil
+    and LibDeflate.DecodeForPrint ~= nil
+
+  return hasBlizzardEncoding and hasDeflateEnums and hasLibDeflate
+end
+
 --- Recursively copy a value (tables only; scalars are returned as-is).
 ---@param value any
 ---@return any
@@ -74,77 +101,39 @@ function Core.BuildExportPayload()
 end
 
 ---------------------------------------------------------------------------
--- Serialization (plain Lua table literal -- readable and re-loadable)
+-- Serialization (CBOR + compression + print-safe encoding)
 ---------------------------------------------------------------------------
 
----@param str string
----@return string
-local function QuoteString(str)
-  return string.format("%q", str)
-end
-
----@param value any
----@param buffer string[]
-local function SerializeValue(value, buffer)
-  ---@type type
-  local t = type(value)
-  if t == "string" then
-    buffer[#buffer + 1] = QuoteString(value)
-  elseif t == "number" or t == "boolean" then
-    buffer[#buffer + 1] = tostring(value)
-  elseif t == "table" then
-    buffer[#buffer + 1] = "{"
-
-    ---@type number
-    local n = #value
-    for i = 1, n do
-      SerializeValue(value[i], buffer)
-      buffer[#buffer + 1] = ","
-    end
-
-    ---@type (string|number)[]
-    local keys = {}
-    for k in pairs(value) do
-      ---@type boolean
-      local isEmittedArrayIndex = type(k) == "number" and k >= 1 and k <= n and k % 1 == 0
-      if not isEmittedArrayIndex then
-        keys[#keys + 1] = k
-      end
-    end
-    table.sort(keys, function(a, b) return tostring(a) < tostring(b) end)
-
-    for i = 1, #keys do
-      ---@type string|number
-      local k = keys[i]
-      if type(k) == "string" and k:match("^[%a_][%w_]*$") then
-        buffer[#buffer + 1] = k .. "="
-      elseif type(k) == "number" then
-        buffer[#buffer + 1] = "[" .. tostring(k) .. "]="
-      else
-        buffer[#buffer + 1] = "[" .. QuoteString(tostring(k)) .. "]="
-      end
-      SerializeValue(value[k], buffer)
-      buffer[#buffer + 1] = ","
-    end
-
-    buffer[#buffer + 1] = "}"
-  else
-    buffer[#buffer + 1] = "nil"
-  end
-end
-
---- Serialize a payload table into a plain Lua table literal string.
+--- Encode a payload table into a compressed, print-safe string.
+--- Pipeline: Lua table -> CBOR -> Deflate compress -> EncodeForPrint
 ---@param payload table
----@return string
-local function SerializeExportPayload(payload)
-  ---@type string[]
-  local buffer = {}
-  SerializeValue(payload, buffer)
-  return table.concat(buffer)
+---@return string? encodedPayload Nil if codec support is missing or encoding fails.
+local function EncodeExportPayload(payload)
+  if (not _HasCodecSupport()) then
+    return nil
+  end
+
+  local ok, encoded = pcall(function()
+    local cbor = C_EncodingUtil.SerializeCBOR(payload)
+    local compressed = C_EncodingUtil.CompressString(cbor, Enum.CompressionMethod.Deflate, Enum.CompressionLevel.Default)
+    return LibDeflate:EncodeForPrint(compressed)
+  end)
+
+  if ok and type(encoded) == "string" then
+    return encoded
+  end
+
+  return nil
 end
 
 --- Build the full exportable string for the current character's saved sessions.
 ---@return string
 function Core.BuildExportString()
-  return SerializeExportPayload(Core.BuildExportPayload())
+  local payload = Core.BuildExportPayload()
+  local encoded = EncodeExportPayload(payload)
+  if encoded then
+    return encoded
+  end
+  -- Fallback: if codec is missing, return an error message instead of crashing.
+  return "ERROR: Client does not have required codec support (C_EncodingUtil, Enum.CompressionMethod, LibDeflate)"
 end
