@@ -9,7 +9,11 @@ File structure, load order, bootstrap sequence, SavedVariables management, and e
 Defined by `QuestieTrace-Classic.toc`:
 
 ```text
+Libs/LibStub/LibStub.lua              -- Library stub for LibDeflate
+Libs/LibDeflate/LibDeflate.lua        -- Compression library (CBOR + Deflate)
 Modules/globals.lua                   -- Core namespace, utilities, RegisterTracker/RegisterDump APIs
+Modules/Localization/l10n.lua         -- Localization system (Core.l10n)
+Modules/Localization/Translations/ExportUI.lua -- Export/UI translations
 Modules/Trackers/PlayerIdentity.lua   -- UnitRace, UnitClass, UnitClassBase, UnitSex, UnitFactionGroup (t=0 only)
 Modules/Trackers/UnitLevel.lua        -- UnitLevel["player"], GetQuestGreenRange
 Modules/Trackers/Position.lua         -- Zone texts, map ID, player position, instance state
@@ -24,17 +28,25 @@ Modules/Trackers/SkillLines.lua       -- Skill window + profession tabs
 Modules/Trackers/SpellBook.lua        -- Raw spellbook slots + PlayerKnownSpells
 Modules/Trackers/ResetTime.lua        -- GetServerTime and GetQuestResetTime
 Modules/Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
-QuestieTrace_UI.lua                  -- Control frame UI
+Modules/Export/Encoding.lua           -- CBOR/Deflate encoding for export payloads
+Modules/Export/Export.lua             -- Payload building, privacy scrubbing
+Modules/Export/ExportUI.lua           -- Export window UI
+QuestieTrace_UI.lua                   -- Control frame UI
 QuestieTrace.lua                      -- Entry point: session lifecycle, event bus, slash commands
 ```
 
 ### Load order rationale
 
-1. `globals.lua` establishes `QuestieTraceCore`, shared types, utility helpers, tracker registration, and dump registration.
-2. Tracker files call `Core.RegisterTracker` at file scope so event routing tables exist before the event frame is created.
-3. Dump files call `Core.RegisterDump` at file scope so dump event/slash routing exists before bootstrap.
-4. `QuestieTrace_UI.lua` defines optional UI functions used by the main file.
-5. `QuestieTrace.lua` runs last, creates the event frame, registers tracked events, and handles slash commands.
+1. `LibStub.lua` / `LibDeflate.lua` provide the compression codec used by the Export subsystem.
+2. `globals.lua` establishes `QuestieTraceCore`, shared types, utility helpers, tracker registration, and dump registration.
+3. `l10n.lua` + `Translations/ExportUI.lua` initialize the localization system (`Core.l10n`) before any module calls `l10n(...)`.
+4. Tracker files call `Core.RegisterTracker` at file scope so event routing tables exist before the event frame is created.
+5. Dump files call `Core.RegisterDump` at file scope so dump event/slash routing exists before bootstrap.
+6. `Encoding.lua` provides CBOR/Deflate encoding functions used by `Export.lua`.
+7. `Export.lua` builds and scrubs export payloads (depends on `Encoding.lua` and `Core.l10n`).
+8. `ExportUI.lua` defines the export window (depends on `Core.l10n` and `Export.lua`).
+9. `QuestieTrace_UI.lua` defines optional UI functions used by the main file.
+10. `QuestieTrace.lua` runs last, creates the event frame, registers tracked events, and handles slash commands.
 
 ---
 
