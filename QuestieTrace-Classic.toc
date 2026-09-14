@@ -13,6 +13,9 @@ Libs/LibDeflate/LibDeflate.lua
 
 Modules/globals.lua
 
+Modules/Localization/l10n.lua
+Modules/Localization/Translations/ExportUI.lua
+
 Modules/Trackers/PlayerIdentity.lua
 Modules/Trackers/UnitLevel.lua
 Modules/Trackers/Position.lua

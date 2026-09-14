@@ -1,6 +1,9 @@
 ---@class QuestieTraceCore
 local Core = QuestieTraceCore
 
+---@type l10n
+local l10n = Core.l10n
+
 ---------------------------------------------------------------------------
 -- Export payload building (data only -- no UI here)
 ---------------------------------------------------------------------------
@@ -86,5 +89,5 @@ function Core.BuildExportString()
     return encoded
   end
   -- Fallback: if codec is missing, return an error message instead of crashing.
-  return "ERROR: Client does not have required codec support (C_EncodingUtil, Enum.CompressionMethod, LibDeflate)"
+  return l10n("ERROR: Client does not have required codec support (C_EncodingUtil, Enum.CompressionMethod, LibDeflate)")
 end

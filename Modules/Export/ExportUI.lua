@@ -3,6 +3,9 @@ QuestieTraceCore = QuestieTraceCore or {}
 ---@class QuestieTraceCore
 local Core = QuestieTraceCore
 
+---@type l10n
+local l10n = Core.l10n
+
 ---------------------------------------------------------------------------
 -- Export window (UI only -- calls into Export/Export.lua for data)
 ---------------------------------------------------------------------------
@@ -43,14 +46,14 @@ local function BuildExportFrame()
 
   local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   title:SetPoint("TOP", 0, -12)
-  title:SetText("QuestieTrace Export")
+  title:SetText(l10n("QuestieTrace Export"))
 
   local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
   hint:SetPoint("TOP", title, "BOTTOM", 0, -6)
   hint:SetPoint("LEFT", 16, 0)
   hint:SetPoint("RIGHT", -16, 0)
   hint:SetJustifyH("CENTER")
-  hint:SetText("Select all (Ctrl+A), copy (Ctrl+C), and share this text with us.")
+  hint:SetText(l10n("Select all (Ctrl+A), copy (Ctrl+C), and share this text with us."))
 
   local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate") --[[@as ScrollFrame]]
   scrollFrame:SetPoint("TOPLEFT", 16, -56)
@@ -73,7 +76,7 @@ local function BuildExportFrame()
   local closeButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
   closeButton:SetSize(80, 22)
   closeButton:SetPoint("BOTTOM", 0, 12)
-  closeButton:SetText("Close")
+  closeButton:SetText(l10n("Close"))
   closeButton:SetScript("OnClick", function() frame:Hide() end)
 
   frame.editBox = editBox
