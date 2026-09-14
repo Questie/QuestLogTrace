@@ -22,7 +22,7 @@ lua Tests/run.lua
 ### Linting (Luacheck)
 
 ```bash
-luacheck -q -- Trackers globals.lua QuestieTrace.lua QuestieTrace_UI.lua Export
+luacheck -q -- Modules QuestieTrace.lua QuestieTrace_UI.lua
 ```
 
 ### Language Server
@@ -38,44 +38,48 @@ lua-language-server --check=.
 ```
 QuestieTrace.lua          - Main addon entry point (initialization, event handling)
 QuestieTrace_UI.lua       - User interface code
-globals.lua                - Global variables, constants, shared state
-QuestieTrace_StateTracking.lua - State tracking and management
-Trackers/                  - Individual tracking modules
-    PlayerIdentity.lua     - Player identity tracking
-    UnitLevel.lua          - Unit level tracking
-    Position.lua           - Position/coordinate tracking
-    Loot.lua               - Loot tracking
-    Reputation.lua         - Reputation tracking
-    QuestLog.lua           - Quest log tracking
-    CompletedQuests.lua    - Completed quests tracking
-    QuestDialog.lua        - Quest dialog/gossip tracking
-    UnitInteraction.lua    - Unit interaction tracking
-    GroupState.lua         - Group/raid state tracking
-    SkillLines.lua         - Skill lines tracking
-    SpellBook.lua          - Spell book tracking
-    ResetTime.lua          - Daily/weekly reset tracking
-specs/                     - Design specifications
-    ARCHITECTURE_SPEC.md   - Overall architecture
-    TRACKER_SPEC.md        - Tracker interface specification
-    EVENT_CATALOG.md       - Event catalog
-    SCHEMA_SPEC.md         - Data schema specification
-    TRACE_FILE_SPEC.md     - Trace file format
-    UI_SPEC.md             - UI specification
+Modules/                  - Core modules and tracking systems
+    globals.lua           - Global variables, constants, shared state
+    Trackers/             - Individual tracking modules
+        PlayerIdentity.lua     - Player identity tracking
+        UnitLevel.lua          - Unit level tracking
+        Position.lua           - Position/coordinate tracking
+        Loot.lua               - Loot tracking
+        Reputation.lua         - Reputation tracking
+        QuestLog.lua           - Quest log tracking
+        CompletedQuests.lua    - Completed quests tracking
+        QuestDialog.lua        - Quest dialog/gossip tracking
+        UnitInteraction.lua    - Unit interaction tracking
+        GroupState.lua         - Group/raid state tracking
+        SkillLines.lua         - Skill lines tracking
+        SpellBook.lua          - Spell book tracking
+        ResetTime.lua          - Daily/weekly reset tracking
+    Dumps/                - Data dump providers
+        MapHierarchy.lua   - C_Map hierarchy data dump
+    Export/               - Data export functionality
+        Export.lua         - Export utilities
+        ExportUI.lua       - Export window UI
+specs/                    - Design specifications
+    ARCHITECTURE_SPEC.md  - Overall architecture
+    TRACKER_SPEC.md       - Tracker interface specification
+    EVENT_CATALOG.md      - Event catalog
+    SCHEMA_SPEC.md        - Data schema specification
+    TRACE_FILE_SPEC.md    - Trace file format
+    UI_SPEC.md            - UI specification
     FUNCTION_EMULATION_SPEC.md - Function emulation
-    LuaLS_annotations.md   - LuaLS type annotation guide
-    README.md              - Specs index
-tasks/                     - Implementation task documents
+    LuaLS_annotations.md  - LuaLS type annotation guide
+    README.md             - Specs index
+tasks/                    - Implementation task documents
 Documentation/
-    WoW-API/               - Blizzard API documentation (Functions-AI, Events)
-    WoW-Event/             - Blizzard event documentation
+    WoW-API/              - Blizzard API documentation (Functions-AI, Events)
+    WoW-Event/            - Blizzard event documentation
 Tests/
-    run.lua                - Test runner with mocked WoW API
-    Empty.lua              - Empty test file
+    run.lua               - Test runner with mocked WoW API
+    Empty.lua             - Empty test file
 tools/
-    trace-analyzer/        - TypeScript/React trace analysis tool
-Traces/                    - Example trace files
-Dumps/                     - Data dumps (e.g. MapHierarchy)
-Export/                    - Data export (Export.lua) and export window UI (ExportUI.lua)
+    trace-analyzer/       - TypeScript/React trace analysis tool
+Traces/                   - Example trace files
+Libs/                     - Third-party libraries
 ```
 
 ## Code Style
@@ -84,7 +88,7 @@ Export/                    - Data export (Export.lua) and export window UI (Expo
 
 QuestieTrace uses a simple module pattern. Trackers register themselves with the core.
 
-**Creating a tracker** (in Trackers/):
+**Creating a tracker** (in `Modules/Trackers/`):
 
 ```lua
 ---@class MyTracker
@@ -272,7 +276,7 @@ end
 For new tests that fit the busted framework pattern, place `*.test.lua` files alongside the source code they test:
 
 ```lua
--- Trackers/MyTracker.test.lua
+-- Modules/Trackers/MyTracker.test.lua
 describe("MyTracker", function()
     it("should handle EVENT_NAME correctly", function()
         -- test implementation
@@ -290,7 +294,7 @@ CI runs on every push/PR: luacheck lint, custom test runner (`lua Tests/run.lua`
 
 Any change to a tracker **must** include corresponding test additions or adjustments:
 
-- Adding a new tracker → add test cases for its event handling in `Tests/run.lua` or create a `Trackers/NewTracker.test.lua`
+- Adding a new tracker → add test cases for its event handling in `Tests/run.lua` or create a `Modules/Trackers/NewTracker.test.lua`
 - Changing event handling behavior → update affected tests
 - Adding new public API → add tests for it
 
@@ -305,8 +309,8 @@ busted -p ".test.lua" .
 
 ### Adding a New Tracker
 
-1. Create `Trackers/NewTracker.lua` following the module pattern
-2. Add to `QuestieTrace-Classic.toc` in load order
+1. Create `Modules/Trackers/NewTracker.lua` following the module pattern
+2. Add to `QuestieTrace-Classic.toc` (and other expansion TOCs) in load order under `Modules/Trackers/`
 3. Register with `QuestieTraceCore:RegisterTracker("NewTracker", NewTracker)`
 4. Add test cases in `Tests/run.lua`
 5. Update relevant specs in `specs/`

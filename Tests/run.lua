@@ -50,7 +50,7 @@ local function NewRuntime(trackerFiles)
   runtime.frame.SetScript = function(frame, name, callback) frame[name] = callback end
   env.CreateFrame = function() return runtime.frame end
 
-  LoadAddonFile(runtime, "globals.lua")
+  LoadAddonFile(runtime, "Modules/globals.lua")
   for _, path in ipairs(trackerFiles) do LoadAddonFile(runtime, path) end
   LoadAddonFile(runtime, "QuestieTrace.lua")
   runtime.core = env.QuestieTraceCore
@@ -121,7 +121,7 @@ end
 
 ---@param phase "stale"|"error"
 local function TestGreetingRetry(phase)
-  local runtime = NewRuntime({ "Trackers/QuestDialog.lua" })
+  local runtime = NewRuntime({ "Modules/Trackers/QuestDialog.lua" })
   local state = GreetingApis(runtime)
   runtime.core.StartCapture("greeting retry")
   AdvanceTo(runtime, 1)
@@ -142,7 +142,7 @@ local function TestGreetingRetry(phase)
 end
 
 local function TestGreetingClose()
-  local runtime = NewRuntime({ "Trackers/QuestDialog.lua" })
+  local runtime = NewRuntime({ "Modules/Trackers/QuestDialog.lua" })
   local state = GreetingApis(runtime)
   runtime.core.StartCapture("close cancellation")
   state.count, state.phase = 0, "stale"
@@ -160,7 +160,7 @@ local function TestGreetingClose()
 end
 
 local function TestGreetingRestart()
-  local runtime = NewRuntime({ "Trackers/QuestDialog.lua" })
+  local runtime = NewRuntime({ "Modules/Trackers/QuestDialog.lua" })
   local state = GreetingApis(runtime)
   runtime.core.StartCapture("old capture")
   local oldSession = Session(runtime)
@@ -207,7 +207,7 @@ local function TestSessionContract()
 end
 
 local function TestSpellBookArity()
-  local runtime = NewRuntime({ "Trackers/SpellBook.lua" })
+  local runtime = NewRuntime({ "Modules/Trackers/SpellBook.lua" })
   local arity = 2
   ---@param slot number
   ---@param bookType string
@@ -234,7 +234,7 @@ local function TestSpellBookArity()
 end
 
 local function TestExportScrubsPlayerIdentity()
-  local runtime = NewRuntime({ "Export/Export.lua" })
+  local runtime = NewRuntime({ "Modules/Export/Export.lua" })
   runtime.core.StartCapture("export test")
   local session = Session(runtime)
   session.functions.UnitName = {
@@ -336,9 +336,9 @@ local function TestExportSerializationRoundTrips()
   end
 
   -- Now load addon files with mocks in place
-  LoadAddonFile(runtime, "globals.lua")
+  LoadAddonFile(runtime, "Modules/globals.lua")
 
-  LoadAddonFile(runtime, "Export/Export.lua")
+  LoadAddonFile(runtime, "Modules/Export/Export.lua")
   LoadAddonFile(runtime, "QuestieTrace.lua")
   runtime.core = env.QuestieTraceCore
 
