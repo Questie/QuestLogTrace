@@ -22,7 +22,7 @@ lua Tests/run.lua
 ### Linting (Luacheck)
 
 ```bash
-luacheck -q -- Modules QuestieTrace.lua QuestieTrace_UI.lua
+luacheck -q .
 ```
 
 ### Language Server

@@ -30,7 +30,7 @@ jobs:
       - name: Run Luacheck
         uses: nebularg/actions-luacheck@v1.1.2
         with:
-          files: Trackers globals.lua QuestieTrace.lua QuestieTrace_UI.lua
+          files: .
           args: -q
 
   unit-tests:
