@@ -5,8 +5,8 @@ local Core = QuestieTraceCore
 -- Export payload building (data only -- no UI here)
 ---------------------------------------------------------------------------
 -- This file is strictly about turning saved sessions into a shareable,
--- privacy-scrubbed payload/string. Any window/frame code lives in
--- Export/ExportUI.lua and must call only the functions defined here.
+-- privacy-scrubbed payload/string. Encoding lives in Encoding.lua, and
+-- window/frame code lives in ExportUI.lua.
 ---------------------------------------------------------------------------
 
 ---@type number
@@ -19,33 +19,6 @@ local SCRUB_TOKENS = { player = true }
 -- Function streams keyed by unit token that could reveal player identity.
 ---@type table<string, boolean>
 local SCRUB_FUNCTION_KEYS = { UnitName = true, UnitGUID = true }
-
--- LibDeflate for print-safe encoding of compressed binary payloads.
----@type LibDeflate
-local LibDeflate = LibStub("LibDeflate", true)
-
---- Check whether the client has the required compression and encoding APIs.
---- Every supported WoW client should have these; if missing, fail loudly.
----@return boolean
-local function _HasCodecSupport()
-  local hasBlizzardEncoding = C_EncodingUtil ~= nil
-    and C_EncodingUtil.SerializeCBOR ~= nil
-    and C_EncodingUtil.DeserializeCBOR ~= nil
-    and C_EncodingUtil.CompressString ~= nil
-    and C_EncodingUtil.DecompressString ~= nil
-
-  local hasDeflateEnums = Enum ~= nil
-    and Enum.CompressionMethod ~= nil
-    and Enum.CompressionMethod.Deflate ~= nil
-    and Enum.CompressionLevel ~= nil
-    and Enum.CompressionLevel.Default ~= nil
-
-  local hasLibDeflate = LibDeflate ~= nil
-    and LibDeflate.EncodeForPrint ~= nil
-    and LibDeflate.DecodeForPrint ~= nil
-
-  return hasBlizzardEncoding and hasDeflateEnums and hasLibDeflate
-end
 
 --- Recursively copy a value (tables only; scalars are returned as-is).
 ---@param value any
@@ -101,36 +74,14 @@ function Core.BuildExportPayload()
 end
 
 ---------------------------------------------------------------------------
--- Serialization (CBOR + compression + print-safe encoding)
+-- Serialization
 ---------------------------------------------------------------------------
-
---- Encode a payload table into a compressed, print-safe string.
---- Pipeline: Lua table -> CBOR -> Deflate compress -> EncodeForPrint
----@param payload table
----@return string? encodedPayload Nil if codec support is missing or encoding fails.
-local function EncodeExportPayload(payload)
-  if (not _HasCodecSupport()) then
-    return nil
-  end
-
-  local ok, encoded = pcall(function()
-    local cbor = C_EncodingUtil.SerializeCBOR(payload)
-    local compressed = C_EncodingUtil.CompressString(cbor, Enum.CompressionMethod.Deflate, Enum.CompressionLevel.Default)
-    return LibDeflate:EncodeForPrint(compressed)
-  end)
-
-  if ok and type(encoded) == "string" then
-    return encoded
-  end
-
-  return nil
-end
 
 --- Build the full exportable string for the current character's saved sessions.
 ---@return string
 function Core.BuildExportString()
   local payload = Core.BuildExportPayload()
-  local encoded = EncodeExportPayload(payload)
+  local encoded = Core.EncodeExportPayload(payload)
   if encoded then
     return encoded
   end
