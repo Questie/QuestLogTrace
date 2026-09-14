@@ -77,6 +77,7 @@ Aliases: `/questietrace` and `/qlt`.
 | `/qlt status` | Print status to chat |
 | `/qlt auto` | Toggle auto-start on login |
 | `/qlt dumpmap` | Run map hierarchy dump provider, when registered |
+| `/qlt export` | Show the export window (see section 6) |
 | `/qlt ui` | Toggle control frame visibility |
 
 ### Behaviors
@@ -107,3 +108,23 @@ The checkbox and `/qlt auto` update the same setting.
   canSave      = boolean,
 }
 ```
+
+---
+
+## 6) Export window
+
+`Export/Export.lua` and `Export/ExportUI.lua` are strictly separate:
+
+- **`Export/Export.lua`** — data only. `Core.BuildExportPayload()` returns a
+  deep-copied, privacy-scrubbed table of all saved sessions for the current
+  character (`{ exportVersion, generatedAt, sessions }`). `Core.SerializeExportPayload(payload)`
+  turns any such table into a plain Lua table literal string.
+  `Core.BuildExportString()` combines both. Scrubbing removes the `player`
+  token from the `UnitName` and `UnitGUID` function streams so the player's
+  own name/realm never leaves the client; NPC identity data is unaffected.
+- **`Export/ExportUI.lua`** — UI only. `Core.ShowExportWindow()` lazily builds
+  a movable frame with a multiline, scrollable, read-only-by-convention edit
+  box. On show, it calls `Core.BuildExportString()` and populates the edit
+  box, focuses it, and highlights all text so the user can immediately
+  `Ctrl+A` / `Ctrl+C`. It never touches SavedVariables or session data itself.
+- Triggered by `/qlt export`.

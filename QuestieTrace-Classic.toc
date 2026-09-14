@@ -26,5 +26,8 @@ Trackers/ResetTime.lua
 
 Dumps/MapHierarchy.lua
 
+Export/Export.lua
+Export/ExportUI.lua
+
 QuestieTrace_UI.lua
 QuestieTrace.lua

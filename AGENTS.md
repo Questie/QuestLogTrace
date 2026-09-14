@@ -22,7 +22,7 @@ lua Tests/run.lua
 ### Linting (Luacheck)
 
 ```bash
-luacheck -q -- Trackers globals.lua QuestieTrace.lua QuestieTrace_UI.lua
+luacheck -q -- Trackers globals.lua QuestieTrace.lua QuestieTrace_UI.lua Export
 ```
 
 ### Language Server
@@ -75,6 +75,7 @@ tools/
     trace-analyzer/        - TypeScript/React trace analysis tool
 Traces/                    - Example trace files
 Dumps/                     - Data dumps (e.g. MapHierarchy)
+Export/                    - Data export (Export.lua) and export window UI (ExportUI.lua)
 ```
 
 ## Code Style
