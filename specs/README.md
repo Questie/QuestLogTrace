@@ -40,7 +40,8 @@ Agent-facing index for QuestieTrace, a WoW Classic Era addon that records quest/
 ├─────────────────────────────────────────────────────────┤
 │  Dumps/               Map hierarchy dump provider       │
 ├─────────────────────────────────────────────────────────┤
-│  Export/              Export.lua: scrub + serialize     │
+│  Export/              Encoding.lua: CBOR/Deflate codec   │
+│                       Export.lua: scrub + serialize     │
 │                       ExportUI.lua: export window only  │
 ├─────────────────────────────────────────────────────────┤
 │  QuestieTrace_UI     Control frame + auto-start toggle  │
