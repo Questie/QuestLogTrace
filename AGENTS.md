@@ -60,6 +60,10 @@ Modules/                  - Core modules and tracking systems
         Encoding.lua       - Codec support checks + CBOR/compression encoding
         Export.lua         - Export utilities
         ExportUI.lua       - Export window UI
+    Localization/         - Translation system
+        l10n.lua           - Translation lookup/locale resolution (Core.l10n)
+        Translations/      - One file per feature area's translatable strings
+            ExportUI.lua   - Strings used by Export/ExportUI.lua and Export.lua
 specs/                    - Design specifications
     ARCHITECTURE_SPEC.md  - Overall architecture
     TRACKER_SPEC.md       - Tracker interface specification
@@ -344,6 +348,28 @@ Trackers store data in the session via `QuestieTraceCore`:
 local session = QuestieTraceCore:GetCurrentSession()
 session.events[#session.events + 1] = { t = time, e = "EVENT_NAME", data = {...} }
 ```
+
+## Localization
+
+User-facing strings (UI text, error messages shown to the user) go through `Core.l10n` (`Modules/Localization/l10n.lua`). Internal/debug-only strings do not need translation.
+
+**Using a translated string** (in any module, after `l10n.lua` has loaded):
+
+```lua
+---@type l10n
+local l10n = Core.l10n
+
+myFontString:SetText(l10n("Close"))
+```
+
+**Adding a new translatable string:**
+
+1. Add the English string as a key to the relevant file under `Modules/Localization/Translations/` (one file per feature area, e.g. `ExportUI.lua` for `Export/ExportUI.lua` + `Export/Export.lua` strings). Create a new file if none fits.
+2. Provide an entry for every supported locale: `enUS`, `deDE`, `esES`, `esMX`, `frFR`, `koKR`, `ptBR`, `ruRU`, `zhCN`, `zhTW`. Use `["enUS"] = true` (the key itself is the enUS string).
+3. Add the new translation file to all `*.toc` files, after `Modules/Localization/l10n.lua` and before any module that calls `l10n(...)` with those keys.
+4. Call `l10n("Your English string")` wherever the string is displayed. `string.format`-style `%s`/`%d` placeholders are supported via extra args: `l10n("Loaded %d sessions", count)`.
+
+Missing translations automatically fall back to the enUS key (used as a format string), so partial translations never crash.
 
 ## Specifications
 
