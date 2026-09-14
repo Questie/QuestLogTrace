@@ -507,6 +507,7 @@ local function PrintHelp()
   print("/qlt reset - Discard unsaved capture")
   print("/qlt status - Show capture status")
   print("/qlt auto - Toggle auto-start on login")
+  print("/qlt export - Show the export window")
   if Core.GetDumpHelpLines then
     local dumpHelpLines = Core.GetDumpHelpLines()
     for i = 1, #dumpHelpLines do
@@ -537,6 +538,10 @@ SlashCmdList["QUESTIETRACE"] = function(msg)
   elseif action == "auto" then
     QuestieTrace.settings.autoStart = not QuestieTrace.settings.autoStart
     print(ADDON_NAME, "Auto-start on login:", QuestieTrace.settings.autoStart and "enabled" or "disabled")
+  elseif action == "export" then
+    if Core.ShowExportWindow then
+      Core.ShowExportWindow()
+    end
   elseif Core.RunDumpBySlash then
     Core.RunDumpBySlash(action, argument)
   elseif action == "ui" then

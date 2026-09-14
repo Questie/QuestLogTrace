@@ -233,6 +233,45 @@ local function TestSpellBookArity()
   assert(names[3].v.n == 4 and names[3].v[4] == nil, "Preserve extra trailing nil returns")
 end
 
+local function TestExportScrubsPlayerIdentity()
+  local runtime = NewRuntime({ "Export/Export.lua" })
+  runtime.core.StartCapture("export test")
+  local session = Session(runtime)
+  session.functions.UnitName = {
+    player = { { t = 0, tp = 0, v = { "Hero", "Realm", n = 2 } } },
+    questnpc = { { t = 0, tp = 0, v = { "Some NPC", nil, n = 2 } } },
+  }
+  session.functions.UnitGUID = {
+    player = { { t = 0, tp = 0, v = "Player-1-000001" } },
+    npc = { { t = 0, tp = 0, v = "Creature-0-1-1-1-123-000001" } },
+  }
+  runtime.core.SaveCapture()
+
+  local payload = runtime.core.BuildExportPayload()
+  local exported = payload.sessions[1]
+  assert(exported.functions.UnitName.player == nil, "Player name must be scrubbed from export")
+  assert(exported.functions.UnitName.questnpc ~= nil, "NPC name must remain in export")
+  assert(exported.functions.UnitGUID.player == nil, "Player GUID must be scrubbed from export")
+  assert(exported.functions.UnitGUID.npc ~= nil, "NPC GUID must remain in export")
+
+  local savedSession = runtime.env.QuestieTraceCharacter.sessions[1]
+  assert(savedSession.functions.UnitName.player ~= nil, "BuildExportPayload must not mutate the saved session")
+end
+
+local function TestExportSerializationRoundTrips()
+  local runtime = NewRuntime({ "Export/Export.lua" })
+  runtime.core.StartCapture("serialize test")
+  local session = Session(runtime)
+  session.functions.GetZoneText = { { t = 0, tp = 0, v = "Dun Morogh" } }
+  runtime.core.SaveCapture()
+
+  local text = runtime.core.BuildExportString()
+  local chunk = assert(loadstring("return " .. text))
+  local decoded = chunk()
+  assert(decoded.exportVersion == 1, "Export payload must carry its version")
+  assert(decoded.sessions[1].functions.GetZoneText[1].v == "Dun Morogh", "Serialized data must round-trip")
+end
+
 ---@type { name: string, run: fun() }[]
 local tests = {
   { name = "greeting retries unsettled titles", run = function() TestGreetingRetry("stale") end },
@@ -241,6 +280,8 @@ local tests = {
   { name = "greeting capture restart resets probes", run = TestGreetingRestart },
   { name = "session contract preserves legacy saves", run = TestSessionContract },
   { name = "spellbook preserves observed tuple arity", run = TestSpellBookArity },
+  { name = "export scrubs player identity", run = TestExportScrubsPlayerIdentity },
+  { name = "export serialization round-trips", run = TestExportSerializationRoundTrips },
 }
 
 local failures = 0

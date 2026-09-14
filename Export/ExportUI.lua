@@ -1,0 +1,97 @@
+QuestieTraceCore = QuestieTraceCore or {}
+
+---@class QuestieTraceCore
+local Core = QuestieTraceCore
+
+---------------------------------------------------------------------------
+-- Export window (UI only -- calls into Export/Export.lua for data)
+---------------------------------------------------------------------------
+
+---@class ExportFrame : Frame
+---@field editBox EditBox
+
+---@type ExportFrame?
+local exportFrame
+
+--- Build the export window frame (lazy; created on first use).
+---@return ExportFrame
+local function BuildExportFrame()
+  local frame = CreateFrame("Frame", "QuestieTraceExportFrame", UIParent) --[[@as ExportFrame]]
+  frame:SetSize(520, 420)
+  frame:SetPoint("CENTER")
+  frame:SetFrameStrata("DIALOG")
+  frame:SetClampedToScreen(true)
+  frame:SetMovable(true)
+  frame:EnableMouse(true)
+  frame:RegisterForDrag("LeftButton")
+  frame:SetScript("OnDragStart", function(self) self:StartMoving() end)
+  frame:SetScript("OnDragStop", function(self) self:StopMovingOrSizing() end)
+  frame:Hide()
+
+  local bg = frame:CreateTexture(nil, "BACKGROUND")
+  bg:SetAllPoints()
+  bg:SetColorTexture(0.05, 0.05, 0.05, 0.95)
+
+  local border = frame:CreateTexture(nil, "BORDER")
+  border:SetAllPoints()
+  border:SetColorTexture(0.20, 0.20, 0.20, 0.9)
+
+  local inner = frame:CreateTexture(nil, "ARTWORK")
+  inner:SetPoint("TOPLEFT", 1, -1)
+  inner:SetPoint("BOTTOMRIGHT", -1, 1)
+  inner:SetColorTexture(0.08, 0.08, 0.08, 0.9)
+
+  local title = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  title:SetPoint("TOP", 0, -12)
+  title:SetText("QuestieTrace Export")
+
+  local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
+  hint:SetPoint("TOP", title, "BOTTOM", 0, -6)
+  hint:SetPoint("LEFT", 16, 0)
+  hint:SetPoint("RIGHT", -16, 0)
+  hint:SetJustifyH("CENTER")
+  hint:SetText("Select all (Ctrl+A), copy (Ctrl+C), and share this text with us.")
+
+  local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate") --[[@as ScrollFrame]]
+  scrollFrame:SetPoint("TOPLEFT", 16, -56)
+  scrollFrame:SetPoint("BOTTOMRIGHT", -32, 44)
+
+  local editBox = CreateFrame("EditBox", nil, scrollFrame) --[[@as EditBox]]
+  editBox:SetMultiLine(true)
+  editBox:SetFontObject("ChatFontNormal")
+  editBox:SetWidth(456)
+  editBox:SetAutoFocus(false)
+  editBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+
+  --- Make the edit box read-only by reverting text on cursor change (any edit attempt).
+  editBox:SetScript("OnCursorChanged", function(self)
+    self:SetText(self.originalText)
+    self:HighlightText()
+  end)
+  scrollFrame:SetScrollChild(editBox)
+
+  local closeButton = CreateFrame("Button", nil, frame, "UIPanelButtonTemplate") --[[@as Button]]
+  closeButton:SetSize(80, 22)
+  closeButton:SetPoint("BOTTOM", 0, 12)
+  closeButton:SetText("Close")
+  closeButton:SetScript("OnClick", function() frame:Hide() end)
+
+  frame.editBox = editBox
+  return frame
+end
+
+--- Show the export window, populated with the current export string.
+--- Data collection lives entirely in Export/Export.lua; this function only
+--- displays whatever Core.BuildExportString() returns.
+function Core.ShowExportWindow()
+  if (not exportFrame) then
+    exportFrame = BuildExportFrame()
+  end
+
+  ---@type string
+  local text = Core.BuildExportString()
+  exportFrame.editBox.originalText = text
+  exportFrame.editBox:SetText(text)
+  exportFrame:Show()
+  exportFrame.editBox:SetFocus()
+end
