@@ -117,11 +117,12 @@ The checkbox and `/qlt auto` update the same setting.
 
 - **`Export/Export.lua`** — data only. `Core.BuildExportPayload()` returns a
   deep-copied, privacy-scrubbed table of all saved sessions for the current
-  character (`{ exportVersion, generatedAt, sessions }`). `Core.SerializeExportPayload(payload)`
-  turns any such table into a plain Lua table literal string.
-  `Core.BuildExportString()` combines both. Scrubbing removes the `player`
-  token from the `UnitName` and `UnitGUID` function streams so the player's
-  own name/realm never leaves the client; NPC identity data is unaffected.
+  character (`{ exportVersion, generatedAt, sessions }`). `Core.BuildExportString()`
+  encodes it via CBOR + Deflate compression + print-safe encoding (LibDeflate:EncodeForPrint),
+  producing a compact binary string suitable for copy-paste sharing.
+  Scrubbing removes the `player` token from the `UnitName` and `UnitGUID` 
+  function streams so the player's own name/realm never leaves the client; 
+  NPC identity data is unaffected.
 - **`Export/ExportUI.lua`** — UI only. `Core.ShowExportWindow()` lazily builds
   a movable frame with a multiline, scrollable, read-only-by-convention edit
   box. On show, it calls `Core.BuildExportString()` and populates the edit

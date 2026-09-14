@@ -8,6 +8,9 @@
 ## SavedVariables: QuestieTrace, QuestieTraceDumps
 ## SavedVariablesPerCharacter: QuestieTraceCharacter
 
+Libs/LibStub/LibStub.lua
+Libs/LibDeflate/LibDeflate.lua
+
 globals.lua
 
 Trackers/PlayerIdentity.lua

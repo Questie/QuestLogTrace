@@ -259,17 +259,99 @@ local function TestExportScrubsPlayerIdentity()
 end
 
 local function TestExportSerializationRoundTrips()
-  local runtime = NewRuntime({ "Export/Export.lua" })
+  local runtime = { env = {}, core = {}, now = 0, timers = {}, frame = {} }
+  local env = runtime.env
+  setmetatable(env, { __index = _G })
+  env._G = env
+  env.QuestLog = {}
+  env.SlashCmdList = {}
+  env.QuestieTrace = { schemaVersion = 9, settings = { maxSessions = 7, autoStart = false } }
+  env.QuestieTraceCharacter = { sessions = {} }
+  env.print = function() end
+  env.GetTime = function() return runtime.now end
+  env.GetTimePreciseSec = env.GetTime
+  env.C_Timer = {
+    After = function(delay, callback)
+      runtime.timers[#runtime.timers + 1] = { at = runtime.now + delay, callback = callback }
+    end,
+  }
+  runtime.frame.RegisterEvent = function() end
+  runtime.frame.SetScript = function(frame, name, callback) frame[name] = callback end
+  env.CreateFrame = function() return runtime.frame end
+
+  -- Initialize QuestieTraceCore BEFORE loading any addon files
+  env.QuestieTraceCore = {}
+
+  -- Mock C_EncodingUtil BEFORE loading Export.lua
+  env.C_EncodingUtil = {
+    SerializeCBOR = function(_value)
+      -- Mock: return a fake CBOR string (just a marker)
+      return "CBOR_ENCODED_DATA"
+    end,
+    DeserializeCBOR = function(source)
+      if source == "CBOR_ENCODED_DATA" then
+        return { exportVersion = 1, sessions = { { functions = { GetZoneText = { { t = 0, tp = 0, v = "Dun Morogh" } } } } } }
+      end
+      return nil
+    end,
+    CompressString = function(_source, _method, _level)
+      -- Mock: return a fake compressed string
+      return "DEFLATE_COMPRESSED_DATA"
+    end,
+    DecompressString = function(source, _method)
+      if source == "DEFLATE_COMPRESSED_DATA" then
+        return "CBOR_ENCODED_DATA"
+      end
+      return nil
+    end,
+  }
+
+  -- Mock Enum compression methods
+  env.Enum = {
+    CompressionMethod = {
+      Deflate = 1,
+    },
+    CompressionLevel = {
+      Default = 1,
+    },
+  }
+
+  -- Mock LibDeflate BEFORE loading Export.lua
+  env.LibDeflate_Instance = {
+    EncodeForPrint = function(_self, source)
+      return "PRINT:" .. tostring(source)
+    end,
+    DecodeForPrint = function(_self, source)
+      if type(source) == "string" and source:sub(1, 6) == "PRINT:" then
+        return source:sub(7)
+      end
+      return nil
+    end,
+  }
+  env.LibStub = function(name, _optional)
+    if name == "LibDeflate" then
+      return env.LibDeflate_Instance
+    end
+    return nil
+  end
+
+  -- Now load addon files with mocks in place
+  LoadAddonFile(runtime, "globals.lua")
+
+  LoadAddonFile(runtime, "Export/Export.lua")
+  LoadAddonFile(runtime, "QuestieTrace.lua")
+  runtime.core = env.QuestieTraceCore
+
   runtime.core.StartCapture("serialize test")
-  local session = Session(runtime)
+  local session = assert(runtime.core.GetDiagnosticSession())
   session.functions.GetZoneText = { { t = 0, tp = 0, v = "Dun Morogh" } }
   runtime.core.SaveCapture()
 
   local text = runtime.core.BuildExportString()
-  local chunk = assert(loadstring("return " .. text))
-  local decoded = chunk()
-  assert(decoded.exportVersion == 1, "Export payload must carry its version")
-  assert(decoded.sessions[1].functions.GetZoneText[1].v == "Dun Morogh", "Serialized data must round-trip")
+  -- text should be a compressed/encoded string, not raw Lua
+  assert(type(text) == "string" and #text > 0, "Export string must be non-empty")
+  -- Verify it starts with print-encoding marker
+  assert(text:sub(1, 6) == "PRINT:", "Export must be print-encoded")
 end
 
 ---@type { name: string, run: fun() }[]

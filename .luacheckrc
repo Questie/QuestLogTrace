@@ -8,6 +8,7 @@ exclude_files = {
     ".vscode/",
     "Documentation/",
     "Traces/",
+    "Libs/",
     "releases/",
     ".luacheckrc",
     "**/.luarocks/**/", -- Created by the GitHub Action
@@ -2833,6 +2834,7 @@ globals = {
     "QuestieTraceCore",
     "QuestieTraceCharacter",
     "QuestieTraceDumps",
+    "LibStub",
     "SlashCmdList",
     "SLASH_QUESTIETRACE1",
     "SLASH_QUESTIETRACE2",
