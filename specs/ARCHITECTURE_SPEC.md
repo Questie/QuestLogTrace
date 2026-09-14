@@ -9,23 +9,23 @@ File structure, load order, bootstrap sequence, SavedVariables management, and e
 Defined by `QuestieTrace-Classic.toc`:
 
 ```text
-globals.lua                   -- Core namespace, utilities, RegisterTracker/RegisterDump APIs
-Trackers/PlayerIdentity.lua   -- UnitRace, UnitClass, UnitClassBase, UnitSex, UnitFactionGroup (t=0 only)
-Trackers/UnitLevel.lua        -- UnitLevel["player"], GetQuestGreenRange
-Trackers/Position.lua         -- Zone texts, map ID, player position, instance state
-Trackers/Loot.lua             -- Loot window capture
-Trackers/Reputation.lua       -- Faction reputation
-Trackers/QuestLog.lua         -- Quest log membership + per-quest/reward/timer functions
-Trackers/CompletedQuests.lua  -- GetQuestsCompleted delta stream
-Trackers/QuestDialog.lua      -- Gossip, greeting, and current quest-dialog APIs
-Trackers/UnitInteraction.lua  -- UnitGUID/UnitName and gossip quest-list APIs
-Trackers/GroupState.lua       -- IsInGroup, GetNumGroupMembers
-Trackers/SkillLines.lua       -- Skill window + profession tabs
-Trackers/SpellBook.lua        -- Raw spellbook slots + PlayerKnownSpells
-Trackers/ResetTime.lua        -- GetServerTime and GetQuestResetTime
-Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
-QuestieTrace_UI.lua          -- Control frame UI
-QuestieTrace.lua             -- Entry point: session lifecycle, event bus, slash commands
+Modules/globals.lua                   -- Core namespace, utilities, RegisterTracker/RegisterDump APIs
+Modules/Trackers/PlayerIdentity.lua   -- UnitRace, UnitClass, UnitClassBase, UnitSex, UnitFactionGroup (t=0 only)
+Modules/Trackers/UnitLevel.lua        -- UnitLevel["player"], GetQuestGreenRange
+Modules/Trackers/Position.lua         -- Zone texts, map ID, player position, instance state
+Modules/Trackers/Loot.lua             -- Loot window capture
+Modules/Trackers/Reputation.lua       -- Faction reputation
+Modules/Trackers/QuestLog.lua         -- Quest log membership + per-quest/reward/timer functions
+Modules/Trackers/CompletedQuests.lua  -- GetQuestsCompleted delta stream
+Modules/Trackers/QuestDialog.lua      -- Gossip, greeting, and current quest-dialog APIs
+Modules/Trackers/UnitInteraction.lua  -- UnitGUID/UnitName and gossip quest-list APIs
+Modules/Trackers/GroupState.lua       -- IsInGroup, GetNumGroupMembers
+Modules/Trackers/SkillLines.lua       -- Skill window + profession tabs
+Modules/Trackers/SpellBook.lua        -- Raw spellbook slots + PlayerKnownSpells
+Modules/Trackers/ResetTime.lua        -- GetServerTime and GetQuestResetTime
+Modules/Dumps/MapHierarchy.lua        -- Static C_Map hierarchy dump (PLAYER_LOGIN + /qlt dumpmap)
+QuestieTrace_UI.lua                  -- Control frame UI
+QuestieTrace.lua                      -- Entry point: session lifecycle, event bus, slash commands
 ```
 
 ### Load order rationale

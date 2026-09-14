@@ -11,26 +11,26 @@
 Libs/LibStub/LibStub.lua
 Libs/LibDeflate/LibDeflate.lua
 
-globals.lua
+Modules/globals.lua
 
-Trackers/PlayerIdentity.lua
-Trackers/UnitLevel.lua
-Trackers/Position.lua
-Trackers/Loot.lua
-Trackers/Reputation.lua
-Trackers/QuestLog.lua
-Trackers/CompletedQuests.lua
-Trackers/QuestDialog.lua
-Trackers/UnitInteraction.lua
-Trackers/GroupState.lua
-Trackers/SkillLines.lua
-Trackers/SpellBook.lua
-Trackers/ResetTime.lua
+Modules/Trackers/PlayerIdentity.lua
+Modules/Trackers/UnitLevel.lua
+Modules/Trackers/Position.lua
+Modules/Trackers/Loot.lua
+Modules/Trackers/Reputation.lua
+Modules/Trackers/QuestLog.lua
+Modules/Trackers/CompletedQuests.lua
+Modules/Trackers/QuestDialog.lua
+Modules/Trackers/UnitInteraction.lua
+Modules/Trackers/GroupState.lua
+Modules/Trackers/SkillLines.lua
+Modules/Trackers/SpellBook.lua
+Modules/Trackers/ResetTime.lua
 
-Dumps/MapHierarchy.lua
+Modules/Dumps/MapHierarchy.lua
 
-Export/Export.lua
-Export/ExportUI.lua
+Modules/Export/Export.lua
+Modules/Export/ExportUI.lua
 
 QuestieTrace_UI.lua
 QuestieTrace.lua
