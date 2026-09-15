@@ -14,7 +14,10 @@ exclude_files = {
     "**/.luarocks/**/", -- Created by the GitHub Action
     "**/.install/**/",  -- Created by the GitHub Action
 }
+
+-- https://luacheck.readthedocs.io/en/stable/warnings.html
 ignore = {
+    "542", -- empty if branch
     "631", -- Line is too long
 }
 globals = {
