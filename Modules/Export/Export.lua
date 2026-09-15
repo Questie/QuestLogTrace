@@ -15,6 +15,15 @@ local l10n = Core.l10n
 ---@type number
 local EXPORT_VERSION = 1
 
+--- Human-readable marker prepended to every exported string.
+--- Lets anyone glance at an export (in a chat window, a bug report, a text
+--- file, ...) and immediately identify it as QuestieTrace data and which
+--- export version produced it, without decoding the payload. Mirrors the
+--- common WoW-addon convention of tagging exports with a short prefix
+--- (e.g. WeakAuras' "!WA:2!").
+---@type string
+local EXPORT_PREFIX = "!QuestieTrace:" .. EXPORT_VERSION .. "!"
+
 --- Recursively copy a value (tables only; scalars are returned as-is).
 ---@param value any
 ---@return any
@@ -150,12 +159,14 @@ end
 ---------------------------------------------------------------------------
 
 --- Build the full exportable string for the current character's saved sessions.
+--- The result is always prefixed with EXPORT_PREFIX so the export version is
+--- visible without decoding the payload.
 ---@return string
 function Core.BuildExportString()
   local payload = Core.BuildExportPayload()
   local encoded = Core.EncodeExportPayload(payload)
   if encoded then
-    return encoded
+    return EXPORT_PREFIX .. encoded
   end
   -- Fallback: if codec is missing, return an error message instead of crashing.
   return l10n("ERROR: Client does not have required codec support (C_EncodingUtil, Enum.CompressionMethod, LibDeflate)")
