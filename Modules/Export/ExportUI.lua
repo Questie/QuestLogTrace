@@ -48,15 +48,28 @@ local function BuildExportFrame()
   title:SetPoint("TOP", 0, -12)
   title:SetText(l10n("QuestieTrace Export"))
 
+  local urlEditBox = CreateFrame("EditBox", nil, frame, "InputBoxTemplate") --[[@as EditBox]]
+  urlEditBox:SetSize(470, 20)
+  urlEditBox:SetPoint("TOP", title, "BOTTOM", 0, -10)
+  urlEditBox:SetAutoFocus(false)
+  urlEditBox:SetFontObject("ChatFontNormal")
+  urlEditBox:SetText("https://forms.gle/Eu8esVRz5QJUFaVq6")
+  urlEditBox:SetScript("OnEscapePressed", function(self) self:ClearFocus() end)
+  urlEditBox:SetScript("OnCursorChanged", function(self)
+    self:SetText("https://forms.gle/Eu8esVRz5QJUFaVq6")
+    self:HighlightText()
+  end)
+  urlEditBox:SetScript("OnEditFocusGained", function(self) self:HighlightText() end)
+
   local hint = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-  hint:SetPoint("TOP", title, "BOTTOM", 0, -6)
+  hint:SetPoint("TOP", urlEditBox, "BOTTOM", 0, -10)
   hint:SetPoint("LEFT", 16, 0)
   hint:SetPoint("RIGHT", -16, 0)
   hint:SetJustifyH("CENTER")
-  hint:SetText(l10n("Select all (Ctrl+A), copy (Ctrl+C), and share this text with us."))
+  hint:SetText(l10n("Copy the text below and submit it at the URL above. This data helps us build the Questie database. Player and guild names are never included."))
 
   local scrollFrame = CreateFrame("ScrollFrame", nil, frame, "UIPanelScrollFrameTemplate") --[[@as ScrollFrame]]
-  scrollFrame:SetPoint("TOPLEFT", 16, -56)
+  scrollFrame:SetPoint("TOPLEFT", 16, -110)
   scrollFrame:SetPoint("BOTTOMRIGHT", -32, 44)
 
   local editBox = CreateFrame("EditBox", nil, scrollFrame) --[[@as EditBox]]

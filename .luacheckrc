@@ -14,6 +14,9 @@ exclude_files = {
     "**/.luarocks/**/", -- Created by the GitHub Action
     "**/.install/**/",  -- Created by the GitHub Action
 }
+ignore = {
+    "631", -- Line is too long
+}
 globals = {
     "----> GlobalAPI",
     "AbandonQuest",
