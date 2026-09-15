@@ -351,8 +351,9 @@ local function TestExportSerializationRoundTrips()
   local text = runtime.core.BuildExportString()
   -- text should be a compressed/encoded string, not raw Lua
   assert(type(text) == "string" and #text > 0, "Export string must be non-empty")
-  -- Verify it starts with print-encoding marker
-  assert(text:sub(1, 6) == "PRINT:", "Export must be print-encoded")
+  -- Verify it starts with the version marker, followed by the print-encoding marker
+  assert(text:match("^!QuestieTrace:%d+!"), "Export must start with the version marker")
+  assert(text:find("PRINT:", 1, true), "Export must be print-encoded")
 end
 
 local function TestCurrentSessionLinkedOnStartCapture()

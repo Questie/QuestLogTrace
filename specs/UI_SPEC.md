@@ -119,7 +119,9 @@ The checkbox and `/qlt auto` update the same setting.
   deep-copied, privacy-scrubbed table of all saved sessions for the current
   character (`{ exportVersion, generatedAt, sessions }`). `Core.BuildExportString()`
   encodes it via CBOR + Deflate compression + print-safe encoding (LibDeflate:EncodeForPrint),
-  producing a compact binary string suitable for copy-paste sharing.
+  producing a compact binary string suitable for copy-paste sharing. The
+  string is prefixed with a plaintext version marker (`!QuestieTrace:<n>!`)
+  so the export format/version is visible without decoding the payload.
   Scrubbing removes the `player` token from the `UnitName` and `UnitGUID` 
   function streams so the player's own name/realm never leaves the client; 
   NPC identity data is unaffected.
