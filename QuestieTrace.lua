@@ -261,6 +261,24 @@ local function EnsureSavedVariables()
 
   QuestieTraceCharacter = type(QuestieTraceCharacter) == "table" and QuestieTraceCharacter or {}
   QuestieTraceCharacter.sessions = type(QuestieTraceCharacter.sessions) == "table" and QuestieTraceCharacter.sessions or {}
+
+  -- Recover an unsaved session left over from a previous load (e.g. /reload
+  -- or logout without explicit Save/Reset). The session is mutated in place
+  -- by trackers, so a single reference assignment at StartCapture keeps both
+  -- names pointing at the same table. On load, if currentSession exists,
+  -- restore it into the in-memory capture.session, force it into a stopped
+  -- state (fill stoppedAt/duration if missing) since tracking cannot safely
+  -- resume across a reload.
+  if QuestieTraceCharacter.currentSession then
+    capture.session = QuestieTraceCharacter.currentSession
+    if (not capture.session.stoppedAt) then
+      capture.session.stoppedAt = GetTime()
+      capture.session.stoppedAtPrecise = GetTimePreciseSec()
+      capture.session.duration = capture.session.stoppedAt - capture.session.startedAt
+      capture.session.durationPrecise = capture.session.stoppedAtPrecise - capture.session.startedAtPrecise
+    end
+    capture.active = false
+  end
 end
 
 --- Remove oldest sessions if the count exceeds the configured maximum.
@@ -353,6 +371,11 @@ function Core.StartCapture(sessionName)
     functionsDelta = {},
   }
 
+  -- Link the in-memory session into SavedVariables so it survives /reload
+  -- and logout without an explicit Save. Since trackers mutate the table
+  -- in place, a single reference assignment is sufficient.
+  QuestieTraceCharacter.currentSession = capture.session
+
   capture.active = true
 
   -- Initialize all registered trackers
@@ -404,6 +427,7 @@ function Core.ResetCapture()
     return
   end
   capture.session = nil
+  QuestieTraceCharacter.currentSession = nil
   print(ADDON_NAME, "Session discarded.")
   if Core.UpdateControlFrameStatus then
     Core.UpdateControlFrameStatus()
@@ -444,6 +468,7 @@ function Core.SaveCapture(nameOverride)
   ---@type number
   local eventCount = #session.events
   capture.session = nil
+  QuestieTraceCharacter.currentSession = nil
 
   print(ADDON_NAME, "Saved session:", session.name, "events:", eventCount)
   if Core.UpdateControlFrameStatus then
@@ -589,7 +614,9 @@ local function OnEvent(_, event, ...)
     Core.RunDumpsForEvent(event, ...)
   end
   if event == "PLAYER_LOGIN" then
-    if not capture.active then
+    -- Only auto-start if no capture is running AND no recovered session exists
+    -- (capture.session would be set by EnsureSavedVariables recovery)
+    if (not capture.active) and (not capture.session) then
       local settings = QuestieTrace and QuestieTrace.settings
       if settings and settings.autoStart ~= false then
         Core.StartCapture()

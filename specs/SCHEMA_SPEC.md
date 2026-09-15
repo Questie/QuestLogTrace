@@ -30,9 +30,15 @@ QuestieTraceDumps = {
 ```lua
 QuestieTraceCharacter = {
   lastSavedSession = "2026-02-10_12-34-56",
+  currentSession = SessionRecord?,          -- live/stopped-unsaved session, linked by reference
   sessions = { SessionRecord, ... },
 }
 ```
+
+`currentSession` is a direct reference to the in-memory `capture.session` table established by `Core.StartCapture()`. Since trackers mutate the table in place,
+no periodic sync is needed — the reference remains valid for the session's lifetime. It is cleared by `Core.SaveCapture()` (session moved to `sessions[]`) and
+`Core.ResetCapture()` (session explicitly discarded). On `VARIABLES_LOADED`, if a leftover `currentSession` exists, it is recovered as a stopped-unsaved
+session (see Bootstrap sequence).
 
 `lastSavedSession` is only set on explicit save — it is not initialized
 on fresh install or migration.
