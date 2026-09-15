@@ -1,8 +1,6 @@
 ---@type QuestieTraceCore
 local Core = QuestieTraceCore
 
----@type string
-local ADDON_NAME = "QuestieTrace"
 ---@type number
 local MAP_DUMP_SCHEMA_VERSION = 1
 ---@type number[]
@@ -173,7 +171,7 @@ local function DumpMapHierarchy()
     rectOnMap = rectOnMap,
   }
 
-  print(ADDON_NAME, "Map dump refreshed. maps:", #allMapIDs, "top maps:", #topUiMapIDs)
+  Core.Debug("Map dump refreshed. maps:", #allMapIDs, "top maps:", #topUiMapIDs)
   return true
 end
 

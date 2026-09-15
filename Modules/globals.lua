@@ -275,9 +275,9 @@ function Core.RunDumpsForEvent(event, ...)
     local dump = callbacks[i]
     local ok, err = pcall(dump.Run, event, ...)
     if not ok then
-      print("QuestieTrace", "Dump failed:", dump.key, err)
+      Core.Debug("Dump failed:", dump.key, err)
     elseif err then
-      print("QuestieTrace", "Dump warning:", dump.key, err)
+      Core.Debug("Dump warning:", dump.key, err)
     end
   end
 end
@@ -291,9 +291,9 @@ function Core.RunDumpBySlash(action, ...)
   if not dump then return false end
   local ok, err = pcall(dump.Run, "SLASH", ...)
   if not ok then
-    print("QuestieTrace", "Dump failed:", dump.key, err)
+    Core.Debug("Dump failed:", dump.key, err)
   elseif err then
-    print("QuestieTrace", "Dump warning:", dump.key, err)
+    Core.Debug("Dump warning:", dump.key, err)
   end
   return true
 end

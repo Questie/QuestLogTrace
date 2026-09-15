@@ -213,6 +213,14 @@ local function Trim(s)
   return (s:gsub("^%s+", ""):gsub("%s+$", ""))
 end
 
+--- Print a debug message if debug mode is enabled.
+---@param ... any Values to print
+function Core.Debug(...)
+  if QuestieTrace and QuestieTrace.settings and QuestieTrace.settings.debug then
+    print(ADDON_NAME, "DEBUG:", ...)
+  end
+end
+
 --- Create a session name from an override or generate one from the current date.
 ---@param override any The optional name override
 ---@return string name
@@ -247,6 +255,10 @@ local function EnsureSavedVariables()
 
   if QuestieTrace.settings.autoStart == nil then
     QuestieTrace.settings.autoStart = true
+  end
+
+  if QuestieTrace.settings.debug == nil then
+    QuestieTrace.settings.debug = false
   end
 
   if type(QuestieTraceDumps) ~= "table" then
@@ -532,6 +544,7 @@ local function PrintHelp()
   print("/qlt reset - Discard unsaved capture")
   print("/qlt status - Show capture status")
   print("/qlt auto - Toggle auto-start on login")
+  print("/qlt debug - Toggle debug prints")
   print("/qlt export - Show the export window")
   if Core.GetDumpHelpLines then
     local dumpHelpLines = Core.GetDumpHelpLines()
@@ -563,6 +576,9 @@ SlashCmdList["QUESTIETRACE"] = function(msg)
   elseif action == "auto" then
     QuestieTrace.settings.autoStart = not QuestieTrace.settings.autoStart
     print(ADDON_NAME, "Auto-start on login:", QuestieTrace.settings.autoStart and "enabled" or "disabled")
+  elseif action == "debug" then
+    QuestieTrace.settings.debug = not QuestieTrace.settings.debug
+    print(ADDON_NAME, "Debug prints:", QuestieTrace.settings.debug and "enabled" or "disabled")
   elseif action == "export" then
     if Core.ShowExportWindow then
       Core.ShowExportWindow()
