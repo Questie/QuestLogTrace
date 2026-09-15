@@ -169,6 +169,9 @@ end
 
 --- Toggle visibility of the control frame.
 function Core.ToggleControlFrame()
-  if not controlFrame then return end
+  if (not controlFrame) then
+    Core.BuildControlFrame()
+    return
+  end
   controlFrame:SetShown(not controlFrame:IsShown())
 end

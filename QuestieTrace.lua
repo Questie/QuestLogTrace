@@ -594,9 +594,6 @@ local function OnEvent(_, event, ...)
   -- 1. Initialization (unchanged)
   if event == "VARIABLES_LOADED" then
     EnsureSavedVariables()
-    if Core.BuildControlFrame then
-      Core.BuildControlFrame()
-    end
     if Core.UpdateControlFrameStatus then
       Core.UpdateControlFrameStatus()
     end
