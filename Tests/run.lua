@@ -355,6 +355,95 @@ local function TestExportSerializationRoundTrips()
   assert(text:sub(1, 6) == "PRINT:", "Export must be print-encoded")
 end
 
+local function TestCurrentSessionLinkedOnStartCapture()
+  local runtime = NewRuntime({})
+  runtime.core.StartCapture("link test")
+  local session = Session(runtime)
+  assert(runtime.env.QuestieTraceCharacter.currentSession == session, "StartCapture must link currentSession to the same table as capture.session")
+end
+
+local function TestSaveCaptureClearsCurrentSession()
+  local runtime = NewRuntime({})
+  runtime.core.StartCapture("save test")
+  runtime.core.SaveCapture()
+  assert(runtime.env.QuestieTraceCharacter.currentSession == nil, "SaveCapture must clear currentSession")
+  assert(runtime.env.QuestieTraceCharacter.sessions[1] ~= nil, "Session must be moved to sessions array")
+end
+
+local function TestResetCaptureClearsCurrentSession()
+  local runtime = NewRuntime({})
+  runtime.core.StartCapture("reset test")
+  runtime.core.StopCapture()
+  runtime.core.ResetCapture()
+  assert(runtime.env.QuestieTraceCharacter.currentSession == nil, "ResetCapture must clear currentSession")
+  assert(#runtime.env.QuestieTraceCharacter.sessions == 0, "ResetCapture must not save to sessions array")
+end
+
+local function TestRecoverCurrentSessionOnVariablesLoaded()
+  local runtime = NewRuntime({})
+  local env = runtime.env
+  -- Simulate a leftover currentSession from a previous load (e.g. /reload without Save)
+  local leftover = {
+    schemaVersion = 9,
+    recordingContractVersion = 1,
+    name = "recovered",
+    startedAt = 100,
+    startedAtPrecise = 100,
+    events = { { t = 101, e = "TEST_EVENT" } },
+    functions = {},
+    functionsDelta = {},
+    -- stoppedAt/duration intentionally missing to test recovery fills them
+  }
+  env.QuestieTraceCharacter.currentSession = leftover
+
+  -- Set virtual time to a value > startedAt so duration is non-negative
+  runtime.now = 150
+
+  -- Trigger VARIABLES_LOADED which calls EnsureSavedVariables and recovery
+  SendEvent(runtime, "VARIABLES_LOADED")
+
+  -- Should now have the session in capture.session with stoppedAt filled
+  local recovered, source = runtime.core.GetDiagnosticSession()
+  assert(recovered == leftover, "Recovered session must be the same table reference")
+  assert(source == "stopped_unsaved", "Recovered session source must be stopped_unsaved")
+  assert(recovered.stoppedAt == 150, "Recovery must fill stoppedAt with current virtual time")
+  assert(recovered.duration == 50, "Recovery must compute correct non-negative duration (150 - 100)")
+  assert(recovered.durationPrecise == 50, "Recovery must compute correct durationPrecise")
+  assert(runtime.core.GetCaptureState() == "stopped_unsaved", "GetCaptureState must report stopped_unsaved after recovery")
+end
+
+local function TestAutoStartDoesNotOverwriteRecoveredSession()
+  local runtime = NewRuntime({})
+  local env = runtime.env
+  -- Simulate a leftover currentSession from a previous load
+  local leftover = {
+    schemaVersion = 9,
+    recordingContractVersion = 1,
+    name = "recovered",
+    startedAt = 100,
+    startedAtPrecise = 100,
+    events = { { t = 101, e = "TEST_EVENT" } },
+    functions = {},
+    functionsDelta = {},
+  }
+  env.QuestieTraceCharacter.currentSession = leftover
+  -- Enable autoStart
+  env.QuestieTrace.settings.autoStart = true
+
+  -- Trigger VARIABLES_LOADED (recovery)
+  SendEvent(runtime, "VARIABLES_LOADED")
+
+  -- Then trigger PLAYER_LOGIN (auto-start logic)
+  SendEvent(runtime, "PLAYER_LOGIN")
+
+  -- The recovered session should still be there, not overwritten
+  local recovered, source = runtime.core.GetDiagnosticSession()
+  assert(recovered == leftover, "Recovered session must not be overwritten by auto-start")
+  assert(source == "stopped_unsaved", "Source must still be stopped_unsaved")
+  assert(#recovered.events == 1, "Recovered session events must be preserved")
+  assert(runtime.core.GetCaptureState() == "stopped_unsaved", "Must remain stopped_unsaved")
+end
+
 ---@type { name: string, run: fun() }[]
 local tests = {
   { name = "greeting retries unsettled titles", run = function() TestGreetingRetry("stale") end },
@@ -365,6 +454,11 @@ local tests = {
   { name = "spellbook preserves observed tuple arity", run = TestSpellBookArity },
   { name = "export scrubs player identity", run = TestExportScrubsPlayerIdentity },
   { name = "export serialization round-trips", run = TestExportSerializationRoundTrips },
+  { name = "currentSession linked on StartCapture", run = TestCurrentSessionLinkedOnStartCapture },
+  { name = "SaveCapture clears currentSession", run = TestSaveCaptureClearsCurrentSession },
+  { name = "ResetCapture clears currentSession", run = TestResetCaptureClearsCurrentSession },
+  { name = "recover currentSession on VARIABLES_LOADED", run = TestRecoverCurrentSessionOnVariablesLoaded },
+  { name = "autoStart does not overwrite recovered session", run = TestAutoStartDoesNotOverwriteRecoveredSession },
 }
 
 local failures = 0

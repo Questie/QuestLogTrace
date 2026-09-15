@@ -55,6 +55,10 @@ QuestieTrace.lua                      -- Entry point: session lifecycle, event b
 On `VARIABLES_LOADED`:
 
 1. `EnsureSavedVariables()` validates/initializes saved data and settings.
+   - If `QuestieTraceCharacter.currentSession` exists (leftover from a `/reload` or logout without explicit Save/Reset), it is restored into the in-memory
+     `capture.session`, forced into a stopped state (filling `stoppedAt`/`duration` if missing, since tracking cannot safely resume across reload), and
+     `capture.active` is set to `false`. This makes `Core.GetCaptureState()` report `"stopped_unsaved"` automatically; the existing Save/Reset buttons in
+     `QuestieTrace_UI.lua` work without changes.
 2. `Core.BuildControlFrame()` creates the optional control frame.
 3. `Core.UpdateControlFrameStatus()` sets initial UI state.
 
@@ -117,9 +121,15 @@ QuestieTraceDumps = {
 ```lua
 QuestieTraceCharacter = {
   lastSavedSession = "2026-02-10_12-34-56", -- set on save only
+  currentSession = SessionRecord?,          -- live/stopped-unsaved session, linked by reference
   sessions = { SessionRecord, ... },
 }
 ```
+
+`currentSession` is a direct reference to the in-memory `capture.session` table established by `Core.StartCapture()`. Since trackers mutate the table in place,
+no periodic sync is needed — the reference remains valid for the session's lifetime. It is cleared by `Core.SaveCapture()` (session moved to `sessions[]`) and
+`Core.ResetCapture()` (session explicitly discarded). On `VARIABLES_LOADED`, if a leftover `currentSession` exists, it is recovered as a stopped-unsaved
+session (see Bootstrap sequence).
 
 ### Migration behavior
 
@@ -156,7 +166,8 @@ Slash command aliases are `/questietrace` and `/qlt`:
 
 For bridge-based diagnostics and tests, `Core.GetDiagnosticSession()` returns
 `(session, source)` where `source` is `"active"`, `"stopped_unsaved"`,
-`"saved"`, or `"none"`. It prefers the live capture session, then the newest
+`"saved"`, or `"none"`. It prefers the live capture session, then a recovered
+`currentSession` (which also reports `"stopped_unsaved"`), then the newest
 saved session. The returned table is not copied and must be treated as read-only
 by callers.
 
