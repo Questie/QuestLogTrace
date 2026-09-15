@@ -45,7 +45,7 @@ A local React app. Pick a session, scrub a timeline, and see what any recorded A
 
 ```sh
 cd tools/trace-analyzer
-npm install
+npm ci
 npm run dev
 ```
 
