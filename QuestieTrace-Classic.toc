@@ -13,7 +13,7 @@
 ## Category-ruRU: Задания
 ## Category-zhCN: 任务
 ## Category-zhTW: 任務
-## Version: 2
+## Version: 1.0.0
 ## RequiredDeps:
 ## OptionalDeps:
 ## SavedVariables: QuestieTrace, QuestieTraceDumps
