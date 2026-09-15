@@ -1,6 +1,6 @@
 # QuestieTrace
 
-QuestieTrace records a World of Warcraft **Classic Era** play session to disk — every tracked game event, plus what the WoW API returned at each moment — so the session can be replayed and inspected later without a running game client.
+QuestieTrace records a World of Warcraft **Classic** play session to disk — every tracked game event, plus what the WoW API returned at each moment — so the session can be replayed and inspected later without a running game client.
 
 It's built for Questie development: capture a real character doing real quests, then step through exactly what the game told the addon at any point in time.
 
@@ -67,7 +67,7 @@ To check on it, type `/qlt status` in chat. A small Start/Stop/Save panel is als
 
 ### 2. Log out
 
-> **Your session is not on disk until you log out or `/reload`.** WoW only writes addon data at those two moments. Alt-F4 or a crash loses the session. This is the most common mistake — log out cleanly.
+> **Your session is not on disk until you log out or `/reload`.** WoW only writes addon data at those two moments. Alt-F4 or a crash loses the session. So regular `/reload`s while actively playing is recommended.
 
 ### 3. Find your trace file
 
