@@ -41,6 +41,7 @@
 
     // Lets ignore libraries so our check tool doesn't get confused.
     "./Libs/**",
+    "./releases/**",
 
     // Logons WoW-API Reference.
     "./Documentation/WoW-API"
