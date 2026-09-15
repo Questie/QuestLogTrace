@@ -580,15 +580,11 @@ SlashCmdList["QUESTIETRACE"] = function(msg)
     QuestieTrace.settings.debug = not QuestieTrace.settings.debug
     print(ADDON_NAME, "Debug prints:", QuestieTrace.settings.debug and "enabled" or "disabled")
   elseif action == "export" then
-    if Core.ShowExportWindow then
-      Core.ShowExportWindow()
-    end
-  elseif Core.RunDumpBySlash then
-    Core.RunDumpBySlash(action, argument)
+    Core.ShowExportWindow()
+  elseif Core.RunDumpBySlash(action, argument) then
+    -- handled by dump provider
   elseif action == "ui" then
-    if Core.ToggleControlFrame then
-      Core.ToggleControlFrame()
-    end
+    Core.ToggleControlFrame()
   else
     print(ADDON_NAME, "Unknown command:", action)
     PrintHelp()
